@@ -17,7 +17,7 @@ installation directory. It can be created with
 
     % /usr/bin/virtualenv -p python3 --always-copy triparchive_env
 	% source ./triparchive_env/bin/activate
-	% 
+	% pip install -r requirements.txt
 
 ## osm_speedcams.sh
 
