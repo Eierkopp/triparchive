@@ -22,9 +22,19 @@ INIT_CMDS = [
     # videopoints table, index, and trigger to cascade insert and delete
     "CREATE TABLE IF NOT EXISTS videopoints (longitude float, latitude float, offset int, video_id int)",
     "CREATE UNIQUE INDEX IF NOT EXISTS vid_offset_idx ON videopoints (offset, video_id)",
-    "CREATE VIRTUAL TABLE IF NOT EXISTS videopoint_index using rtree (rowid, min_lon, max_lon, min_lat, max_lat)",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS videopoint_index using rtree (row, min_lon, max_lon, min_lat, max_lat)",
     "CREATE TRIGGER IF NOT EXISTS insert_videopoint_trg after insert on videopoints begin insert into videopoint_index values (NEW.rowid, NEW.longitude, NEW.latitude, NEW.longitude, NEW.latitude); end",
-    "CREATE TRIGGER IF NOT EXISTS delete_videopoint_trg after delete on videopoints begin delete from videopoint_index where rowid = OLD.rowid; end"
+    "CREATE TRIGGER IF NOT EXISTS delete_videopoint_trg after delete on videopoints begin delete from videopoint_index where row = OLD.rowid; end",
+
+    # countries table trigger to cascade deletes
+    "CREATE TABLE IF NOT EXISTS countries (country text primary key)",
+    "CREATE TRIGGER IF NOT EXISTS delete_country_trg after delete on countries begin delete from geonetnames where country_id = OLD.rowid; end",
+    
+    # geonetnames table, index, and trigger to cascade insert and delete
+    "CREATE TABLE IF NOT EXISTS geonetnames (longitude float, latitude float, name text, feature text, country_id int)",
+    "CREATE VIRTUAL TABLE IF NOT EXISTS gns_index using rtree (row, min_lon, max_lon, min_lat, max_lat)",
+    "CREATE TRIGGER IF NOT EXISTS insert_gns_trg after insert on geonetnames begin insert into gns_index values (NEW.rowid, NEW.longitude, NEW.latitude, NEW.longitude, NEW.latitude); end",
+    "CREATE TRIGGER IF NOT EXISTS delete_gns_trg after delete on geonetnames begin delete from gns_index where row = OLD.rowid; end",
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -142,3 +152,29 @@ class DB:
                     for row in c.cursor:
                         track.append(DB.from_videopoint(row))
         return track
+
+    #
+    # geonetnames support
+    #
+
+    def get_country_id(self, country):
+        country = country.lower()
+        with self.conn() as db:
+            with CWrap(db.cursor()) as c:
+                c.execute("select rowid from countries where country = ?", (country,))
+                rows = c.fetchall()
+                if len(rows) == 1:
+                    return rows[0][0]
+                c.execute("insert into countries (country) values (?)", (country,))
+                return c.lastrowid
+
+    def remove_gns(self, country_id):
+        with self.conn() as db:
+            with CWrap(db.cursor()) as c:
+                c.execute("delete from geonetnames where country_id = ?", (country_id,))
+
+    def add_gns(self, conn, country_id, values):
+        lon, lat, name, feature = values
+        with CWrap(conn.cursor()) as c:
+            c.execute("insert or ignore into geonetnames values (?,?,?,?,?)", (lon, lat, name, feature, country_id))
+            return c.rowcount

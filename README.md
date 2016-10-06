@@ -48,6 +48,12 @@ Import tracklogs from an mtk track logger. Requires
 
 	% bin/mtkimport.sh --mtk_dev /dev/ttyACM0
 
+## gnsimport.sh
+
+Import country files from the [GNS](http://geonames.nga.mil/) website.
+
+    % bin/gnsimport.sh --gns_country austria
+
 ## videomap.sh
 
 Generate an overview map containing the tracklogs of all tracks
