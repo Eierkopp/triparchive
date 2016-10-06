@@ -41,3 +41,13 @@ Import tracklogs from [GPX](www.topografix.com/gpx.asp) files.
     % bin/gpximport.sh --gpx_name /tmp/current.gpx
 	
 
+## videomap.sh
+
+Generate an overview map containing the tracklogs of all tracks
+contained in video files selected by the given mask. Video files have
+to be imported already for this command to produce useful output.
+
+![sample map](https://cloud.githubusercontent.com/assets/6553148/19149564/c75b7b26-8bc2-11e6-93a0-9c45d5c84362.png)
+
+    % bin/videomap.sh --video_mask=sauerland --map_width=400 --map_height=300
+	

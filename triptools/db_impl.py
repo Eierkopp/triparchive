@@ -1,7 +1,9 @@
 from functools import lru_cache
 import logging
+import re
 import sqlite3
 import traceback
+import types
 
 from triptools import config
 from triptools import Trackpoint
@@ -56,30 +58,36 @@ class DB:
         with self.conn() as db:
             with CWrap(db.cursor()) as c:
                 for cmd in INIT_CMDS:
-                    print(cmd)
                     c.execute(cmd)
 
+    #
+    # trackpoints support
+    #
+                    
     @staticmethod
-    def make_trackpoint(row):
+    def from_trackpoint(row):
         return Trackpoint(row[0], row[1], row[2], row[3])
 
     def add_trackpoint(self, conn, trackpoint):
         with CWrap(conn.execute("insert OR IGNORE into trackpoints (timestamp, longitude, latitude, altitude) values (?,?,?,?)", (trackpoint.timestamp, trackpoint.longitude, trackpoint.latitude, trackpoint.altitude))) as c:
             return c.rowcount
             
-    
     def get_track_from_rect(self, ll_corner, ur_corner):
         with self.conn() as db:
             trackpoints = []
             with CWrap(db.execute("select timestamp from location_index where min_lon >= ? and min_lat >= ? and max_lon <= ? and max_lat <= ? order by timestamp", (ll_corner[0], ll_corner[1], ur_corner[0], ur_corner[1]))) as idx_cursor:
                 for row in idx_cursor:
                     with CWrap(db.execute("select * from trackpoints where timestamp = ?", row)) as result:
-                        trackpoints.append(DB.make_trackpoint(result.fetchone()))
+                        trackpoints.append(DB.from_trackpoint(result.fetchone()))
         return trackpoints
 
     #
     # video support
     #
+
+    @staticmethod
+    def from_videopoint(row):
+        return Trackpoint(row[2], row[0], row[1], 0.0)
 
     def get_video_id(self, filename):
         with self.conn() as db:
@@ -90,6 +98,16 @@ class DB:
                     return rows[0][0]
                 c.execute("insert into videos (filename) values (?)", (filename,))
                 return c.lastrowid
+
+    def get_video_ids(self, filemask):
+        expr = re.compile(filemask)
+        ids = []
+        with self.conn() as db:
+            with CWrap(db.execute("select rowid, filename from videos order by rowid")) as c:
+                for id, name in c.cursor:
+                    if expr.search(name):
+                        ids.append(id)
+        return ids
 
     def remove_video(self, filename):
         with self.conn() as db:
@@ -104,3 +122,13 @@ class DB:
     def add_video_point(self, conn, lon, lat, offset, video_id):
         with CWrap(conn.cursor()) as c:
             c.execute("insert into videopoints values (?,?,?,?)", (lon, lat, offset, video_id))
+
+    def fetch_videopoints(self, video_ids):
+        if isinstance(video_ids, int): video_ids = [ video_ids]
+        track = []
+        with self.conn() as db:
+            for id in video_ids:
+                with CWrap(db.execute("select * from videopoints where video_id = ?", (id,))) as c:
+                    for row in c.cursor:
+                        track.append(DB.from_videopoint(row))
+        return track

@@ -1,4 +1,4 @@
-
+import math
 
 class Trackpoint:
 
@@ -11,11 +11,10 @@ class Trackpoint:
     def __str__(self):
         return "(%d: lon:%f lat:%f alt:%f)" % (self.timestamp, self.longitude, self.latitude, self.altitude)
 
-
 # approx earth radius in m
 EARTH_RADIUS=6371000.0
 
-def distance(self, lon1, lat1, lon2, lat2):
+def distance(lon1, lat1, lon2, lat2):
     """Approx distance in meter"""
     rlat1 = math.pi * lat1 / 180
     rlon1 = math.pi * lon1 / 180
