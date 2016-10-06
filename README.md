@@ -3,7 +3,7 @@
 A collection of random tools to dabble with 
 
 - Garmin GPS (Zumo 590)
-- Countour +2
+- Contour +2
 - Digital camera
 
 Development and testing is done exclusively on
@@ -50,4 +50,11 @@ to be imported already for this command to produce useful output.
 ![sample map](https://cloud.githubusercontent.com/assets/6553148/19149564/c75b7b26-8bc2-11e6-93a0-9c45d5c84362.png)
 
     % bin/videomap.sh --video_mask=sauerland --map_width=400 --map_height=300
+	
+## trackmap.sh
+
+Generate an overview map containing all tracklogs imported from a GPS
+receiver. Trackpoints may be filtered by timestamp.
+
+	% bin/trackmap.sh --track_start=2016-05-01T06:00:00 --track_end=2016-05-02T06:00:00
 	

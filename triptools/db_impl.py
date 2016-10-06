@@ -73,6 +73,14 @@ class DB:
         with CWrap(conn.execute("insert OR IGNORE into trackpoints (timestamp, longitude, latitude, altitude) values (?,?,?,?)", (trackpoint.timestamp, trackpoint.longitude, trackpoint.latitude, trackpoint.altitude))) as c:
             return c.rowcount
             
+    def fetch_trackpoints(self, start_ts, end_ts):
+        track = []
+        with self.conn() as db:
+            with CWrap(db.execute("select * from trackpoints where timestamp >= ? and timestamp <= ?", (start_ts, end_ts))) as c:
+                for row in c.cursor:
+                    track.append(DB.from_trackpoint(row))
+        return track
+
     def get_track_from_rect(self, ll_corner, ur_corner):
         with self.conn() as db:
             trackpoints = []
