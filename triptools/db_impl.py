@@ -21,6 +21,7 @@ INIT_CMDS = [
 
     # videopoints table, index, and trigger to cascade insert and delete
     "CREATE TABLE IF NOT EXISTS videopoints (longitude float, latitude float, offset int, video_id int)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS vid_offset_idx ON videopoints (offset, video_id)",
     "CREATE VIRTUAL TABLE IF NOT EXISTS videopoint_index using rtree (rowid, min_lon, max_lon, min_lat, max_lat)",
     "CREATE TRIGGER IF NOT EXISTS insert_videopoint_trg after insert on videopoints begin insert into videopoint_index values (NEW.rowid, NEW.longitude, NEW.latitude, NEW.longitude, NEW.latitude); end",
     "CREATE TRIGGER IF NOT EXISTS delete_videopoint_trg after delete on videopoints begin delete from videopoint_index where rowid = OLD.rowid; end"
@@ -121,7 +122,8 @@ class DB:
 
     def add_video_point(self, conn, lon, lat, offset, video_id):
         with CWrap(conn.cursor()) as c:
-            c.execute("insert into videopoints values (?,?,?,?)", (lon, lat, offset, video_id))
+            c.execute("insert or ignore into videopoints values (?,?,?,?)", (lon, lat, offset, video_id))
+            return c.rowcount
 
     def fetch_videopoints(self, video_ids):
         if isinstance(video_ids, int): video_ids = [ video_ids]

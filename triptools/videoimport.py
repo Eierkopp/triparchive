@@ -3,6 +3,7 @@
 
 import logging
 import os
+from pynmea.nmea import GPRMC, GPGGA
 from pynmea.streamer import NMEAStream
 import re
 import shlex
@@ -18,10 +19,13 @@ logging.basicConfig(level=logging.INFO)
 TIME_EXPR = re.compile(r"^(\d\d):(\d\d):(\d\d),(\d\d\d) --> .*$")
 
 def nmeaToFloat(nmeaStr):
-    floatVal = float(nmeaStr) / 100.0
-    deg = int(floatVal)
-    mins = floatVal - deg
-    return deg + mins/6.0*10
+    if nmeaStr:
+        floatVal = float(nmeaStr) / 100.0
+        deg = int(floatVal)
+        mins = floatVal - deg
+        return deg + mins/6.0*10
+    else:
+        return None
 
 def import_videopoints(filename):
 
@@ -53,13 +57,29 @@ def import_videopoints(filename):
                         o = stream.get_objects(data=line)
                         if o:
                             o = (o[0])
-                            if "timestamp" in dir(o) and "datestamp" in dir(o) and o.lat and o.lon:
+                            lon = None
+                            lat = None
+                            if isinstance(o, GPRMC):
+                                lon = nmeaToFloat(o.lon)
+                                lat = nmeaToFloat(o.lat)
+                                if o.lon_dir == "W":
+                                    lon = -lon
+                                if o.lat_dir == "S":
+                                    lat = -lat
+                            elif isinstance(o, GPGGA):
+                                lon = nmeaToFloat(o.longitude)
+                                lat = nmeaToFloat(o.latitude)
+                                if o.lon_direction == "W":
+                                    lon = -lon
+                                if o.lat_direction == "S":
+                                    lat = -lat
+
+                            if lon and lat:
                                 try:
-                                    lon = nmeaToFloat(o.lon)
-                                    lat = nmeaToFloat(o.lat)
-                                    db.add_video_point(conn, lon, lat, offset, video_id)
-                                    count += 1
+                                    count += db.add_video_point(conn, lon, lat, offset, video_id)
                                 except:
+                                    import traceback
+                                    traceback.print_exc()
                                     pass
 
             logging.getLogger(__name__).info("file '%s' imported, %d videopoints added to DB" % (filename, count))
