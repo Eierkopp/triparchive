@@ -28,5 +28,16 @@ into Garmin poi format. Requires [gpsbabel](https://www.gpsbabel.org/).
 ## videoimport.sh
 
 Import GPS information from Contour +2 cam into a database. For each
-position record filename and timestamp are saved.
+position the filename and timestamp offset are saved. This will allow
+a player to play a movie at a certain offset by clicking on a
+trackpoint on a map. 
+
+    % bin/videoimport.sh --video_name /tmp/FILE0023.MP4
+
+## gpximport.sh
+
+Import tracklogs from [GPX](www.topografix.com/gpx.asp) files. 
+
+    % bin/gpximport.sh --gpx_name /tmp/current.gpx
+	
 

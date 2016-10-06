@@ -37,6 +37,7 @@ def import_videopoints(filename):
         lat = None
         stream = NMEAStream()
         with subprocess.Popen(args, stdout=subprocess.PIPE) as ffmpeg:
+            count = 0
             for line in ffmpeg.stdout:
                 line = line.decode("ascii").strip()
                 if not line:
@@ -56,12 +57,13 @@ def import_videopoints(filename):
                                 try:
                                     lon = nmeaToFloat(o.lon)
                                     lat = nmeaToFloat(o.lat)
-                                    print("%d, %d: %f %f" % (video_id, offset, lon ,lat))
                                     db.add_video_point(conn, lon, lat, offset, video_id)
+                                    count += 1
                                 except:
                                     pass
-                print(video_id, offset, lon, lat)
 
+            logging.getLogger(__name__).info("file '%s' imported, %d videopoints added to DB" % (filename, count))
+            
 if __name__ == "__main__":
 
     try:
@@ -71,7 +73,6 @@ if __name__ == "__main__":
 
         import_videopoints(filename)
         
-        logging.getLogger(__name__).info("file '%s' imported" % filename)
     except Exception as e:
         logging.getLogger(__name__).error(e, exc_info=True)
         sys.exit(1)
