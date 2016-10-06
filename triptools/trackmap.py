@@ -21,6 +21,9 @@ def make_trackmap(start_time, end_time):
     db = DB()
     
     track = db.fetch_trackpoints(start_time, end_time)
+    if len(track)< 2:
+        raise Exception("track too short")
+
     bb = osm_mapper.get_bounding_box(track,
                                      config.getfloat("Map", "marg_pct"),
                                      config.getfloat("Map", "marg_km"))

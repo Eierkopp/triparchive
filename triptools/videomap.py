@@ -15,6 +15,9 @@ def make_videomap(mask):
     video_ids = db.get_video_ids(mask)
 
     track = db.fetch_videopoints(video_ids)
+    if len(track)< 2:
+        raise Exception("track too short")
+    
     bb = osm_mapper.get_bounding_box(track,
                                      config.getfloat("Map", "marg_pct"),
                                      config.getfloat("Map", "marg_km"))

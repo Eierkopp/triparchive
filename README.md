@@ -3,6 +3,7 @@
 A collection of random tools to dabble with 
 
 - Garmin GPS (Zumo 590)
+- MTK track logger
 - Contour +2
 - Digital camera
 
@@ -40,6 +41,12 @@ Import tracklogs from [GPX](www.topografix.com/gpx.asp) files.
 
     % bin/gpximport.sh --gpx_name /tmp/current.gpx
 	
+## mtkimport.sh
+
+Import tracklogs from an mtk track logger. Requires
+[gpsbabel](https://www.gpsbabel.org/).
+
+	% bin/mtkimport.sh --mtk_dev /dev/ttyACM0
 
 ## videomap.sh
 

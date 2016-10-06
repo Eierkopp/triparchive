@@ -47,7 +47,7 @@ def parse_lines(fName):
 def export(data):
     missing_translation = set()
     default_ft = sp_conf.get("default_feature")
-    args = [sp_conf["gpsbabel_path"]] + shlex.split("-i csv -f - -o garmin_gpi -F") + [sp_conf["poi_file"]]
+    args = [config.get("Tools", "gpsbabel_path")] + shlex.split("-i csv -f - -o garmin_gpi -F") + [sp_conf["poi_file"]]
     
     with subprocess.Popen(args, stdin=subprocess.PIPE) as gpsbabel:
         for lon, lat, ft, max_speed in parse_lines(data):
@@ -64,7 +64,7 @@ def export(data):
 if __name__ == "__main__":
 
     try:
-        if not os.access(sp_conf["gpsbabel_path"], os.X_OK):
+        if not os.access(config.get("Tools", "gpsbabel_path"), os.X_OK):
             raise Exception("gpsbabel missing or gpsbabel_path misconfigured")
     
         data = download(sp_conf["osm_url"])
