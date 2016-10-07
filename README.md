@@ -70,4 +70,15 @@ Generate an overview map containing all tracklogs imported from a GPS
 receiver. Trackpoints may be filtered by timestamp.
 
 	% bin/trackmap.sh --track_start=2016-05-01T06:00:00 --track_end=2016-05-02T06:00:00
+
+## geotagger.sh
+
+Add EXIF information to image. GPS position is fetched from
+trackpoints by matching timestamps. Location names are fetched from
+geonetnames information by correlating location with data previously
+imported with `gnsimport.sh`.
+
+	% bin/geotagger.sh --photo_name DCIM0001.jpg
 	
+	
+

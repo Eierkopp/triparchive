@@ -95,6 +95,7 @@ class DB:
         return tp1, tp2
 
     def get_track_from_rect(self, ll_corner, ur_corner):
+        raise Exception("Foobared")
         with self.conn() as db:
             trackpoints = []
             with CWrap(db.execute("select timestamp from location_index where min_lon >= ? and min_lat >= ? and max_lon <= ? and max_lat <= ? order by timestamp", (ll_corner[0], ll_corner[1], ur_corner[0], ur_corner[1]))) as idx_cursor:
