@@ -11,6 +11,9 @@ class Trackpoint:
     def __str__(self):
         return "(%d: lon:%f lat:%f alt:%f)" % (self.timestamp, self.longitude, self.latitude, self.altitude)
 
+    def __repr__(self):
+        return self.__str__()
+
 # approx earth radius in m
 EARTH_RADIUS=6371000.0
 
@@ -26,3 +29,8 @@ def distance(lon1, lat1, lon2, lat2):
     c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
     return EARTH_RADIUS*c
 
+def tp_dist(tp1, tp2):
+    return distance(tp1.longitude, tp1.latitude, tp2.longitude, tp2.latitude)
+
+def dist_to_deg(dist):
+    return dist / EARTH_RADIUS * 57.29577951308232

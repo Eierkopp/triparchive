@@ -7,7 +7,7 @@ import geotiler
 import cairocffi as cairo
 from geotiler.cache import redis_downloader
 
-from triptools.common import EARTH_RADIUS
+from triptools.common import EARTH_RADIUS, dist_to_deg
 
 class MapTool:
 
@@ -35,9 +35,8 @@ class MapTool:
         """Compute approximate bounding box"""
 
         def compute_margin(cmin, cmax, margin_pct, margin_km):
-            # 1000*360/2*pi = 57295.77951308232
             margin = (cmax - cmin) * margin_pct
-            margin_deg = margin_km / EARTH_RADIUS * 57295.77951308232
+            margin_deg = dist_to_deg(margin_km * 1000)
             return max(margin, margin_deg)
 
         max_lon = min_lon = track[0].longitude

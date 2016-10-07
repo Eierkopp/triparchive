@@ -1,12 +1,12 @@
 from functools import lru_cache
 import logging
 import re
-import sqlite3
+import pymongo
 import traceback
 import types
 
 from triptools import config
-from triptools import Trackpoint
+from triptools.common import Trackpoint, tp_dist, dist_to_deg, distance
 
 INIT_CMDS = [
     # trackpoints table, index, and trigger to populate index
@@ -90,6 +90,17 @@ class DB:
                 for row in c.cursor:
                     track.append(DB.from_trackpoint(row))
         return track
+
+    def fetch_closest_trackpoints(self, timestamp):
+        with self.conn() as db:
+            with CWrap(db.cursor()) as c:
+                c.execute("select * from trackpoints where timestamp <= ? order by timestamp desc limit 1", (timestamp,))
+                row = c.fetchone()
+                tp1 = DB.from_trackpoint(row) if row else None
+                c.execute("select * from trackpoints where timestamp >= ? order by timestamp asc limit 1", (timestamp,))
+                row = c.fetchone()
+                tp2 = DB.from_trackpoint(row) if row else None
+                return tp1, tp2
 
     def get_track_from_rect(self, ll_corner, ur_corner):
         with self.conn() as db:
@@ -178,3 +189,19 @@ class DB:
         with CWrap(conn.cursor()) as c:
             c.execute("insert or ignore into geonetnames values (?,?,?,?,?)", (lon, lat, name, feature, country_id))
             return c.rowcount
+
+    def get_features(self, tp, max_dist_m):
+        offs_deg = dist_to_deg(max_dist_m)
+        bb = (tp.longitude - offs_deg, tp.longitude + offs_deg, tp.latitude - offs_deg, tp.latitude + offs_deg)
+        print(bb)
+        with self.conn() as conn:
+            with CWrap(conn.cursor()) as c:
+                c.execute("select rowid from geonetnames where longitude >= ? and longitude <= ? limit 100",
+                          (tp.longitude - offs_deg, tp.longitude + offs_deg))
+# and max_lon >= ? and min_lat <= ? and max_lat >= ?", bb)
+                rows = c.fetchall()
+                for row in rows:
+                    c.execute("select * from geonetnames where rowid=?", row)
+                    lon, lat, name, feature, country_id = c.fetchone()
+                    print(feature, lon, lat, distance(tp.longitude, tp.latitude, lon,lat))
+                
