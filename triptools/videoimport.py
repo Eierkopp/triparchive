@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import calendar
+from datetime import datetime
 import logging
 import os
 from pynmea.nmea import GPRMC, GPGGA
@@ -29,8 +31,7 @@ def nmeaToFloat(nmeaStr):
 
 def import_videopoints(filename):
 
-    db = DB()
-    with db.conn() as conn:
+    with DB() as db:
         video_id = db.get_video_id(filename)
         db.remove_points(video_id)
         
@@ -76,11 +77,10 @@ def import_videopoints(filename):
 
                             if lon and lat:
                                 try:
-                                    count += db.add_video_point(conn, lon, lat, offset, video_id)
+                                    count += db.add_video_point(lon, lat, offset, video_id)
                                 except:
                                     import traceback
                                     traceback.print_exc()
-                                    pass
 
             logging.getLogger(__name__).info("file '%s' imported, %d videopoints added to DB" % (filename, count))
             

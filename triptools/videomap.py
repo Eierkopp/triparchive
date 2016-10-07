@@ -11,8 +11,8 @@ from triptools import osm_mapper
 logging.basicConfig(level=logging.INFO)
 
 def make_videomap(mask):
-    db = DB()
-    video_ids = db.get_video_ids(mask)
+    with DB() as db:
+        video_ids = db.get_video_ids(mask)
 
     track = db.fetch_videopoints(video_ids)
     if len(track)< 2:

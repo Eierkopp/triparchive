@@ -28,14 +28,14 @@ def import_mtktrack():
     output = output.decode("ascii")
     records = gpxpy.parse(output)
 
-    db = DB()
-    with db.conn() as conn:
+    with DB() as db:
+        trackpoints = db.trackpoints()
         for tp in records.walk(True):
             t = Trackpoint(calendar.timegm(tp.time.utctimetuple()),
                            tp.longitude,
                            tp.latitude,
                            tp.elevation)
-            count += db.add_trackpoint(conn, t)
+            count += db.add_trackpoint(trackpoints, t)
 
     logging.getLogger(__name__).info("Trackpoints from '%s' imported, %d trackpoints added to DB" % (dev_name, count))
             
