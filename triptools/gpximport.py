@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 
 def import_gpxtrack(filename):
 
-    db = DB()
-    with db.conn() as conn:
+    with DB() as db:
+        tps = db.trackpoints()
         with open(filename, "r", encoding="utf8") as gpx_file:
             count = 0
             records = gpxpy.parse(gpx_file)
@@ -25,7 +25,7 @@ def import_gpxtrack(filename):
                                tp.longitude,
                                tp.latitude,
                                tp.elevation)
-                count += db.add_trackpoint(conn, t)
+                count += db.add_trackpoint(tps, t)
             logging.getLogger(__name__).info("file '%s' imported, %d trackpoints added to DB" % (filename, count))
             
 if __name__ == "__main__":

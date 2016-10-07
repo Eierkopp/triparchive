@@ -1,5 +1,5 @@
 from .configuration import config
-from .common import Trackpoint
+from .common import Trackpoint, Feature
 from .db_impl import DB
 from .map_support import MapTool
 

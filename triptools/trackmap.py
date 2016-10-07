@@ -18,22 +18,21 @@ def parse_ts(ts):
     return calendar.timegm(dt.utctimetuple())
 
 def make_trackmap(start_time, end_time):
-    db = DB()
-    
-    track = db.fetch_trackpoints(start_time, end_time)
-    if len(track)< 2:
-        raise Exception("track too short")
+    with DB() as db:
+        track = db.fetch_trackpoints(start_time, end_time)
+        if len(track)< 2:
+            raise Exception("track too short")
 
-    bb = osm_mapper.get_bounding_box(track,
-                                     config.getfloat("Map", "marg_pct"),
-                                     config.getfloat("Map", "marg_km"))
+        bb = osm_mapper.get_bounding_box(track,
+                                         config.getfloat("Map", "marg_pct"),
+                                         config.getfloat("Map", "marg_km"))
 
-    map_tile, image = osm_mapper.get_map_from_bb(bb,
-                                                 (config.getint("Map", "width"),
-                                                  config.getint("Map", "height")))
-    surface = osm_mapper.as_surface(image)
-    osm_mapper.draw_trackpoints(map_tile, surface, track)
-    surface.write_to_png(config.get("Map", "target"))
+        map_tile, image = osm_mapper.get_map_from_bb(bb,
+                                                     (config.getint("Map", "width"),
+                                                      config.getint("Map", "height")))
+        surface = osm_mapper.as_surface(image)
+        osm_mapper.draw_trackpoints(map_tile, surface, track)
+        surface.write_to_png(config.get("Map", "target"))
     
 if __name__ == "__main__":
 

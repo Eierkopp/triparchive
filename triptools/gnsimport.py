@@ -42,12 +42,11 @@ def unzip(data):
     if len(complete_name) != 6:
         raise Exception("Zip archive mismatch, please file an issue")
     complete_file = zf.open(complete_name)
-    return complete_file.read()
+    data = complete_file.read()
+    return data
 
 def import_line(conn, country_id, values):
     lon, lat, name, feature = values
-    
-    
     
 def import_gns(country, url):
     url = config.get("GNS", "base_url") + url
@@ -57,15 +56,13 @@ def import_gns(country, url):
     lines = data.splitlines()
     indexes = fetch_indexes(FEATURES, lines[0])
 
-    db = DB()
-    country_id = db.get_country_id(country)
-
-    db.remove_gns(country_id)
-    count = 0
-    with db.conn() as conn:
+    with DB() as db:
+        db.remove_gns(country)
+        count = 0
+        gns = db.geonetnames()
         for line in lines[1:]:
             line = line.split("\t")
-            count += db.add_gns(conn, country_id, [line[i] for i in indexes])
+            count += db.add_gns(gns, country, float(line[indexes[0]]), float(line[indexes[1]]), line[indexes[2]], line[indexes[3]])
 
     logging.getLogger(__name__).info("geonetnames for '%s' imported, %d entries added to DB" % (country, count))
     

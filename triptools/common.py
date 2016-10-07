@@ -14,6 +14,32 @@ class Trackpoint:
     def __repr__(self):
         return self.__str__()
 
+class Feature:
+
+    FeatureMapper = { 'A' : 'Administrative region',
+                      'P' : 'Populated place',
+                      'V' : 'Vegetation',
+                      'L' : 'Locality or area',
+                      'U' : 'Undersea',
+                      'R' : 'Streets',
+                      'T' : 'Hypsographic',
+                      'H' : 'Hydrographic',
+                      'S' : 'Spot'
+    }
+
+    def __init__(self, name, longitude, latitude, feature_type):
+        self.longitude = longitude
+        self.latitude = latitude
+        self.name = name
+        self.feature_type = feature_type
+
+    def __str__(self):
+        return "(%s: lon:%f lat:%f type:%s)" % (self.name, self.longitude, self.latitude, self.feature_type)
+
+    def __repr__(self):
+        return self.__str__()
+
+
 # approx earth radius in m
 EARTH_RADIUS=6371000.0
 
