@@ -110,7 +110,7 @@ class DB:
 
     @staticmethod
     def from_videopoint(doc):
-        return Trackpoint(doc["offset"],
+        return Trackpoint(doc["timestamp"],
                           doc["location"]["coordinates"][0],
                           doc["location"]["coordinates"][1],
                           0.0)
@@ -146,7 +146,7 @@ class DB:
         videopoints = self.videopoints()
         videopoints.remove({"video_id" : ObjectId(video_id)})
 
-    def add_video_point(self, lon, lat, offset, video_id):
+    def add_video_point(self, lon, lat, timestamp, video_id):
         videopoints = self.videopoints()
         try:
             videopoints.insert({
@@ -154,7 +154,7 @@ class DB:
                                    "coordinates": [ lon, lat ]  
                                    },
                 "video_id" : ObjectId(video_id),
-                "offset" : offset,
+                "timestamp" : timestamp,
             })
         except pymongo.errors.DuplicateKeyError:
             return 0
@@ -227,8 +227,8 @@ def make_schema():
 
         videopoints = db.videopoints()
         videopoints.create_index([("video_id", pymongo.ASCENDING),
-                                  ("offset", pymongo.ASCENDING)],
-                                 name="videopoints_offset_video_idx", unique=True)
+                                  ("timestamp", pymongo.ASCENDING)],
+                                 name="videopoints_timestamp_video_idx", unique=True)
 
         gns = db.geonetnames()
         gns.create_index([("location", pymongo.GEOSPHERE)],

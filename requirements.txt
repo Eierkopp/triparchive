@@ -6,4 +6,5 @@ cairocffi>=0.7
 dateutils>=0.6
 piexif>=1.0
 pymongo>=3.3
+moviepy>=0.2.2
 
