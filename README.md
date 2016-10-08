@@ -80,5 +80,12 @@ imported with `gnsimport.sh`.
 
 	% bin/geotagger.sh --photo_name DCIM0001.jpg
 	
+## mapmovie.sh
+
+Add a transparent map to a video centered around the camera position.
+
+	% bin/mapmovie.sh --video_name video.mp4
+
 	
+
 

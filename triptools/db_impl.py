@@ -113,15 +113,29 @@ class DB:
         return Trackpoint(doc["timestamp"],
                           doc["location"]["coordinates"][0],
                           doc["location"]["coordinates"][1],
-                          0.0)
+                          doc["altitude"])
 
-    def get_video_id(self, filename):
+    def get_video_id(self, filename, start_time=None, duration=None):
         videos = self.videos()
         with videos.find({ "filename" : filename}) as cursor:
             ids = [ doc["_id"] for doc in cursor ]
         if ids:
             return str(ids[0])
-        return str(videos.insert({"filename" : filename }))
+        if start_time and duration:
+            return str(videos.insert({"filename" : filename,
+                                      "start_time" : start_time,
+                                      "duration" : duration
+            }))
+        else:
+            return None
+
+    def get_video(self, filename):
+        videos = self.videos()
+        try:
+            with videos.find({ "filename" : filename}) as cursor:
+                return next(cursor)
+        except StopIteration:
+            return None
 
     def get_video_ids(self, filemask):
         expr = re.compile(filemask)
@@ -146,7 +160,7 @@ class DB:
         videopoints = self.videopoints()
         videopoints.remove({"video_id" : ObjectId(video_id)})
 
-    def add_video_point(self, lon, lat, timestamp, video_id):
+    def add_video_point(self, lon, lat, alt, timestamp, video_id):
         videopoints = self.videopoints()
         try:
             videopoints.insert({
@@ -154,19 +168,19 @@ class DB:
                                    "coordinates": [ lon, lat ]  
                                    },
                 "video_id" : ObjectId(video_id),
+                "altitude" : alt,
                 "timestamp" : timestamp,
             })
         except pymongo.errors.DuplicateKeyError:
             return 0
         return 1
 
-
     def fetch_videopoints(self, video_ids):
-        if isinstance(video_ids, int): video_ids = [ video_ids]
+        if isinstance(video_ids, str): video_ids = [ video_ids]
         track = []
         videopoints = self.videopoints()
         for id in video_ids:
-            with videopoints.find({"video_id" : ObjectId(id)}).sort([("offset", pymongo.ASCENDING)]) as c:
+            with videopoints.find({"video_id" : ObjectId(id)}).sort([("timestamp", pymongo.ASCENDING)]) as c:
                 track += [ DB.from_videopoint(row) for row in c]
         return track
 

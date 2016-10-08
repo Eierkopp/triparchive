@@ -57,7 +57,7 @@ class MapTool:
         image = geotiler.render_map(map_tile, downloader = self.downloader)
         return map_tile, image
         
-    def get_centered_map(self, lat, lon, zoom, size):
+    def get_centered_map(self, lon, lat, zoom, size):
         map_tile = geotiler.Map(center=(lon, lat), zoom=zoom, size=size)
         image = geotiler.render_map(map_tile, downloader = self.downloader)
         return map_tile, image
