@@ -83,9 +83,8 @@ imported with `gnsimport.sh`.
 ## mapmovie.sh
 
 Add a transparent map to a video centered around the camera position.
+The result will look like this:
 
-	% bin/mapmovie.sh --video_name video.mp4
+[![generated video](http://img.youtube.com/vi/MNXc0GG2-7k/0.jpg)](http://www.youtube.com/watch?v=MNXc0GG2-7k)
 
-	
-
-
+    % bin/mapmovie.sh --video_name video.mp4
