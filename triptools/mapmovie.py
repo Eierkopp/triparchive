@@ -9,9 +9,11 @@ from imageio.plugins import ffmpeg
 from moviepy.editor import CompositeVideoClip, VideoFileClip
 import math
 import shutil
+import shlex
 import subprocess
 import tempfile
 import time
+from tqdm import tqdm
 
 from triptools import config
 from triptools import DB
@@ -56,14 +58,14 @@ def makeMaps(filename, track, start_time, duration):
     zoom = config.getint("Video", "map_zoom")
     
     dir_name = tempfile.mkdtemp(prefix="mapmovie_")
-    map_movie_name = tempfile.mktemp(prefix="mapmovie_", suffix=".mp4")
+    map_movie_name = tempfile.mktemp(prefix="mapmovie_", suffix=".avi")
 
-    t = start_time
     n = 0
     db = DB()
+
+    ticks = [t/framerate + start_time for t in range(int(duration * framerate))]
     
-    while t < start_time + duration:
-        print("%s -> %s" % (time.ctime(t), track.get(t)))
+    for t in tqdm(ticks):
 
         tp = track.get(t)
         
@@ -112,40 +114,92 @@ def makeMaps(filename, track, start_time, duration):
         n += 1
         t += 1.0 / framerate
 
-    rc = subprocess.call([ffmpeg.get_exe(), "-framerate", str(framerate),
+    rc = subprocess.call([ffmpeg.get_exe(), "-loglevel", "8", "-framerate", str(framerate),
                           "-i", os.path.join(dir_name, MAP_FORMAT),
-                          "-c:v", "libx264",
-                          "-r", "30", "-pix_fmt", "yuv420p", map_movie_name])
+                          "-c:v", "ffvhuff", map_movie_name])
 
     shutil.rmtree(dir_name)
     
     if rc != 0:
         raise Exception("Failed to create maps movie %s" % map_movie_name)
 
+    logging.getLogger(__name__).info("Map movie rendered into %s" % map_movie_name)
+    
     return map_movie_name
   
             
-def renderOverlay(filename, maps_movie, target_name):
+def renderOverlay(filename, maps_movie, target_name, profile):
     cam_clip = VideoFileClip(filename)
     map_clip = VideoFileClip(maps_movie).set_opacity(0.7)
 
     video = CompositeVideoClip([cam_clip,
                                 map_clip.set_pos(("right","top"))])
 
-    video.write_videofile(target_name,
-                          fps=cam_clip.fps,
-                          codec="h264",
-                          audio_codec="mp3",
-                          #temp_audiofile="xx.aac",
-                          bitrate="8000K")
+    if "fps" not in profile:
+        profile["fps"] = cam_clip.fps
+    
+    video.write_videofile(target_name, **profile)
 
-    os.remove(maps_movie)
+def make_target(name):
+    profile = config["Movie_Profile_" + config.get("Video", "movie_profile")]
+    target_name = os.path.splitext(name)[0] + profile["name_suffix"]
+    return target_name
+
+def build_profile():
+
+    def boolean(value):
+        return value.lower() in ["true","yes"]
+
+    def boolean_or_str(value):
+        if value.lower() in ["true", "yes"]:
+            return True
+        if value.lower() in ["false", "no"]:
+            return False
+        return value
+
+    def tempname(suffix):
+        return tempfile.mktemp(suffix=suffix)
+    
+    section = config["Movie_Profile_" + config.get("Video", "movie_profile")]
+    profile = dict()
+
+    known_args = { "fps" : int,
+                   "codec" : str,
+                   "bitrate" : str,
+                   "audio" : boolean_or_str,
+                   "audio_fps" : int,
+                   "preset" : str,
+                   "audio_nbytes" : int,
+                   "audio_codec" : str,
+                   "audio_bitrate" : str,
+                   "audio_bufsize" : int,
+                   "temp_audiofile" : tempname,
+                   "rewrite_audio" : boolean,
+                   "remove_temp" : boolean,
+                   "write_logfile" : boolean,
+                   "verbose" : boolean,
+                   "threads" : int,
+                   "ffmpeg_params" : shlex.split
+    }
+    
+    for key in section:
+        if key in known_args:
+            profile[key] = known_args[key](section.get(key))
+
+    logging.getLogger(__name__).info("Using ffmpeg at %s" % ffmpeg.get_exe())
+    logging.getLogger(__name__).info("Using profile %s" % profile)
+    return profile
 
 if __name__ == "__main__":
 
     try:
         filename = config.get("Video", "name")
         filename = os.path.abspath(filename)
+        
+        profile = build_profile()
+
+        target_name = make_target(filename)
+        
         with DB() as db:
             video_info = db.get_video(filename)
             if video_info is None:
@@ -162,7 +216,9 @@ if __name__ == "__main__":
             
             maps_movie = makeMaps(filename, track, start_time, duration)
 
-            renderOverlay(filename, maps_movie, "/tmp/xx.mp4")
+            renderOverlay(filename, maps_movie, target_name, profile)
+
+            os.remove(maps_movie)
             
     except Exception as e:
         logging.getLogger(__name__).error(e, exc_info=True)

@@ -1,8 +1,12 @@
 from configparser import SafeConfigParser, ExtendedInterpolation
-import os
-import logging
 import argparse
+import logging
+import os
 import sys
+import warnings
+
+# disable warnings
+warnings.filterwarnings("ignore", message=".*")
 
 logging.basicConfig(level=logging.INFO)
 
