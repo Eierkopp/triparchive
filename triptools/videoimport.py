@@ -43,16 +43,18 @@ def nmeaToFloat(nmeaStr):
 def fetch_duration(filename):
     expr = re.compile("\s+Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2}),.*")
     args = [ffmpeg.get_exe(), "-i", filename]
+    seconds = None
     with subprocess.Popen(args, stderr=subprocess.PIPE) as job:
         for line in job.stderr:
             line = line.decode("ascii", "ignore")
             m = expr.match(line)
             if m:
-                seconds = (int(m.group(1)) * 3600
-                           + int(m.group(2)) * 60
-                           + int(m.group(3))
-                           + int(m.group(4))/100.0)
-    return seconds
+                return (int(m.group(1)) * 3600
+                        + int(m.group(2)) * 60
+                        + int(m.group(3))
+                        + int(m.group(4))/100.0)
+
+    raise Exception("Failed to fetch duration")
 
 def fetch_videopoints(filename):
     args = [ffmpeg.get_exe()] + shlex.split("-loglevel 8 -i") + [filename] + shlex.split("-map 0:s:0 -f srt -")
