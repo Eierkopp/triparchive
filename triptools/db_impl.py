@@ -15,9 +15,9 @@ class DB:
 
     def __init__(self):
         self.host = config.get("DB", "host")
-        self.port = config.get("DB", "port")
+        self.port = config.getint("DB", "port")
         self.db_name = config.get("DB", "database")
-        self.__conn = pymongo.MongoClient("localhost", 27017)
+        self.__conn = pymongo.MongoClient(self.host, self.port)
         print("Open")
 
     def __enter__(self):

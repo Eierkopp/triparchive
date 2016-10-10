@@ -143,6 +143,8 @@ def renderOverlay(filename, maps_movie, target_name, profile):
 def make_target(name):
     profile = config["Movie_Profile_" + config.get("Video", "movie_profile")]
     target_name = os.path.splitext(name)[0] + profile["name_suffix"]
+    if os.access(target_name, os.R_OK):
+        raise Exception("Target '%s' already exists, skipping" % target_name)
     return target_name
 
 def build_profile():
@@ -195,11 +197,11 @@ if __name__ == "__main__":
     try:
         filename = config.get("Video", "name")
         filename = os.path.abspath(filename)
+        logging.getLogger(__name__).info("Processing video %s" % filename)
         
-        profile = build_profile()
-
         target_name = make_target(filename)
-        
+        profile = build_profile()
+       
         with DB() as db:
             video_info = db.get_video(filename)
             if video_info is None:
