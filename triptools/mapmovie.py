@@ -139,6 +139,8 @@ def renderOverlay(filename, maps_movie, target_name, profile):
         profile["fps"] = cam_clip.fps
     
     video.write_videofile(target_name, **profile)
+    
+    logging.getLogger(__name__).info("Movie rendered into %s" % target_name)
 
 def make_target(name):
     profile = config["Movie_Profile_" + config.get("Video", "movie_profile")]
