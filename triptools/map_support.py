@@ -7,14 +7,13 @@ import geotiler
 import cairocffi as cairo
 from geotiler.cache import redis_downloader
 
-from triptools.common import EARTH_RADIUS, dist_to_deg
+from triptools.common import EARTH_RADIUS, dist_to_deg, tp_dist
 
 class MapTool:
 
     def __init__(self, redis_host):
         client = redis.Redis(redis_host)
         self.downloader = redis_downloader(client, timeout=86400 * 356) # cache for 1 year
-        MapTool.fix_async_io_event_loop()
         
     @staticmethod
     def fix_async_io_event_loop():
@@ -52,12 +51,14 @@ class MapTool:
         return ( (min_lon - marg_lon, min_lat - marg_lat), (max_lon + marg_lon, max_lat + marg_lat) )
 
     def get_map_from_bb(self, bb, size):
+        MapTool.fix_async_io_event_loop()
         lb,ru = bb
         map_tile = geotiler.Map(extent=(lb[0], lb[1], ru[0],ru[1]), size=size)
         image = geotiler.render_map(map_tile, downloader = self.downloader)
         return map_tile, image
         
     def get_centered_map(self, lon, lat, zoom, size):
+        MapTool.fix_async_io_event_loop()
         map_tile = geotiler.Map(center=(lon, lat), zoom=zoom, size=size)
         image = geotiler.render_map(map_tile, downloader = self.downloader)
         return map_tile, image
@@ -73,6 +74,7 @@ class MapTool:
 
         t = 0.0
         x1, y1 = map_tile.rev_geocode( (trackPoints[0].longitude, trackPoints[0].latitude) )
+        tp = trackPoints[0]
         cr.move_to(x1, y1)
         cr.set_line_width(2)
 
@@ -80,11 +82,12 @@ class MapTool:
         for t in trackPoints:
 
             x2, y2 = map_tile.rev_geocode( (t.longitude, t.latitude) )
-            if abs(x1 - x2) < 5 and abs(y1 - y2) < 5:
+            if tp_dist(tp, t) < 100:
                 cr.line_to(x2, y2)
             else:
                 cr.move_to(x2, y2)
 
             x1, y1 = x2, y2
+            tp = t
 
         cr.stroke()

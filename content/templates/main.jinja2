@@ -1,0 +1,23 @@
+<!doctype html>
+<title>Video Viewer</title>
+<form action="/play{{ part }}"  method="post" target="_blank">
+  <table>
+  <tr>
+    <td></td>
+    <td align="center"><a href="{{up}}">up</a></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="{{left}}">left</a></td>
+    <td>
+      <input type="image" name="img" src="{{ part }}/map.png" alt="map image"/>
+    </td>
+    <td><a href="{{right}}">right</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="{{zoom_out}}">-</a></td>
+    <td align="center"><a href="{{down}}">down</a></td>
+    <td align="center"><a href="{{zoom_in}}">+</a></td>
+  </tr>
+</table>
+</form>

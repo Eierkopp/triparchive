@@ -88,3 +88,14 @@ The result will look like this:
 [![generated video](http://img.youtube.com/vi/MNXc0GG2-7k/0.jpg)](http://www.youtube.com/watch?v=MNXc0GG2-7k)
 
     % bin/mapmovie.sh --video_name video.mp4
+
+## videoserve.sh
+
+A simple web application that serves a clickable map containing the
+tracks of a selected set of videos. Clicking on a trackpoint plays the
+video at the given position. For this to work the movies need to be
+placed in content/static (a symlink is sufficient).
+
+    % bin/videoserve.sh --video_mask=5.6.2016
+	
+

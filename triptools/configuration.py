@@ -5,6 +5,8 @@ import os
 import sys
 import warnings
 
+MOVIE_PROFILE_PREFIX = "Movie_Profile_"
+
 # disable warnings
 warnings.filterwarnings("ignore", message=".*")
 
@@ -38,6 +40,7 @@ parser.add_argument("--exthelp",
                     action="store_true")
 
 args = parser.parse_known_args()[0]
+args.basedir = os.path.abspath(args.basedir)
 
 conf_file = os.getenv('TRIPARCHIVE_CONF', args.config)
 

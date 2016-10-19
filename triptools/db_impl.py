@@ -18,14 +18,12 @@ class DB:
         self.port = config.getint("DB", "port")
         self.db_name = config.get("DB", "database")
         self.__conn = pymongo.MongoClient(self.host, self.port)
-        print("Open")
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, tb):
         self.__conn.close()
-        print("Closed")
         
     def trackpoints(self):
         return self.__setup_collection("trackpoints")
@@ -113,7 +111,8 @@ class DB:
         return Trackpoint(doc["timestamp"],
                           doc["location"]["coordinates"][0],
                           doc["location"]["coordinates"][1],
-                          doc["altitude"])
+                          doc["altitude"],
+                          video_id = str(doc["video_id"]))
 
     def get_video_id(self, filename, start_time=None, duration=None):
         videos = self.videos()
@@ -133,6 +132,14 @@ class DB:
         videos = self.videos()
         try:
             with videos.find({ "filename" : filename}) as cursor:
+                return next(cursor)
+        except StopIteration:
+            return None
+
+    def get_video_by_id(self, id):
+        videos = self.videos()
+        try:
+            with videos.find({ "_id" : ObjectId(id)}) as cursor:
                 return next(cursor)
         except StopIteration:
             return None
@@ -183,6 +190,21 @@ class DB:
             with videopoints.find({"video_id" : ObjectId(id)}).sort([("timestamp", pymongo.ASCENDING)]) as c:
                 track += [ DB.from_videopoint(row) for row in c]
         return track
+
+    def get_closest_videopoint(self, lon, lat, video_ids):
+        if isinstance(video_ids, str): video_ids = [ video_ids]
+        videopoints = self.videopoints()
+        points = []
+        for video_id in video_ids:
+            with videopoints.find({"$and" : [{"location": {"$nearSphere":[ lon, lat ]}},
+                                             {"video_id" : ObjectId(video_id)}]}).limit(1) as c:
+                tp = DB.from_videopoint(next(c))
+                points.append(tp)
+        idx = points.index(min(points, key=lambda tp:distance(tp.longitude, tp.latitude, lon, lat)))
+        print(idx, points[idx], video_ids[idx])
+        video = self.get_video_by_id(video_ids[idx])
+        offset = points[idx].timestamp - video["start_time"]
+        print(video["filename"], offset)
 
     #
     # geonetnames support
@@ -243,6 +265,8 @@ def make_schema():
         videopoints.create_index([("video_id", pymongo.ASCENDING),
                                   ("timestamp", pymongo.ASCENDING)],
                                  name="videopoints_timestamp_video_idx", unique=True)
+        videopoints.create_index([("location", pymongo.GEOSPHERE)],
+                                 name="videopoints_location_video_idx")
 
         gns = db.geonetnames()
         gns.create_index([("location", pymongo.GEOSPHERE)],

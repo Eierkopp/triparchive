@@ -4,11 +4,13 @@ from scipy.interpolate import splev, splrep
 
 class Trackpoint:
 
-    def __init__(self, timestamp, lon, lat, alt):
+    def __init__(self, timestamp, lon, lat, alt, **additional_info):
         self.timestamp = timestamp
         self.longitude = lon
         self.latitude = lat
         self.altitude = alt
+        for key, value in additional_info.items():
+            setattr(self, key, value)
 
     def __str__(self):
         return "(%d: lon:%f lat:%f alt:%f)" % (self.timestamp, self.longitude, self.latitude, self.altitude)

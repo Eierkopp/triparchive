@@ -104,7 +104,7 @@ def fetch_videopoints(filename):
                             if o.lat_direction == "S":
                                 lat = -lat
                             if o.altitude_units == "M" and o.antenna_altitude:
-                                alt = o.antenna_altitude
+                                alt = float(o.antenna_altitude)
                         if lon is not None and lat is not None and alt is not None:
                             try:
                                 points.append((lon, lat, alt, offset))

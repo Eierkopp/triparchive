@@ -19,6 +19,7 @@ from triptools import config
 from triptools import DB
 from triptools import osm_mapper
 from triptools.common import Track, Trackpoint
+from triptool.configuration import MOVIE_PROFILE_PREFIX
 
 logging.basicConfig(level=logging.INFO)
 
@@ -164,7 +165,7 @@ def build_profile():
     def tempname(suffix):
         return tempfile.mktemp(suffix=suffix)
     
-    section = config["Movie_Profile_" + config.get("Video", "movie_profile")]
+    section = config[MOVIE_PROFILE_PREFIX + config.get("Video", "movie_profile")]
     profile = dict()
 
     known_args = { "fps" : int,
