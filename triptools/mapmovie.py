@@ -19,7 +19,7 @@ from triptools import config
 from triptools import DB
 from triptools import osm_mapper
 from triptools.common import Track, Trackpoint
-from triptool.configuration import MOVIE_PROFILE_PREFIX
+from triptools.configuration import MOVIE_PROFILE_PREFIX
 
 logging.basicConfig(level=logging.INFO)
 
