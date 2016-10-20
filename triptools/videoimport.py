@@ -142,7 +142,6 @@ if __name__ == "__main__":
     try:
         filename = config.get("Video", "name")
         filename = os.path.abspath(filename)
-        print(filename)
         if not os.access(filename, os.R_OK):
             raise Exception("cannot read video file '%s'" % filename)
 

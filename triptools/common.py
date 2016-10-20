@@ -1,3 +1,7 @@
+import calendar
+from datetime import datetime
+import pytz
+import time
 import math
 import numpy as np
 from scipy.interpolate import splev, splrep
@@ -9,11 +13,13 @@ class Trackpoint:
         self.longitude = lon
         self.latitude = lat
         self.altitude = alt
+        self.additional_info = additional_info
         for key, value in additional_info.items():
             setattr(self, key, value)
 
     def __str__(self):
-        return "(%d: lon:%f lat:%f alt:%f)" % (self.timestamp, self.longitude, self.latitude, self.altitude)
+        additionals = "".join([" " + key + ":" + value for key, value in self.additional_info.items()])
+        return "(%d: lon:%f lat:%f alt:%f%s)" % (self.timestamp, self.longitude, self.latitude, self.altitude, additionals)
 
     def __repr__(self):
         return self.__str__()
@@ -114,3 +120,15 @@ def tp_dist(tp1, tp2):
 
 def dist_to_deg(dist):
     return dist / EARTH_RADIUS * 57.29577951308232
+
+
+def parse_datetime(timestamp, format, timezone):
+    tz = pytz.timezone(timezone)
+    dt = tz.localize(datetime.strptime(timestamp, format))
+    return calendar.timegm(dt.utctimetuple())
+
+def format_datetime(timestamp, format, timezone):
+    tz = pytz.timezone(timezone)
+    timestamp = datetime.fromtimestamp(timestamp, tz=tz)
+    return timestamp.strftime(format)
+

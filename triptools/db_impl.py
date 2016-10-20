@@ -37,6 +37,9 @@ class DB:
     def videos(self):
         return self.__setup_collection("videos")
 
+    def photos(self):
+        return self.__setup_collection("photos")
+
     def geonetnames(self):
         return self.__setup_collection("geonetnames")
 
@@ -92,16 +95,42 @@ class DB:
         tp2 = DB.from_trackpoint(best_above) if best_above else None
         return tp1, tp2
 
-    def get_track_from_rect(self, ll_corner, ur_corner):
-        raise Exception("Foobared")
-        with self.conn() as db:
-            trackpoints = []
-            with CWrap(db.execute("select timestamp from location_index where min_lon >= ? and min_lat >= ? and max_lon <= ? and max_lat <= ? order by timestamp", (ll_corner[0], ll_corner[1], ur_corner[0], ur_corner[1]))) as idx_cursor:
-                for row in idx_cursor:
-                    with CWrap(db.execute("select * from trackpoints where timestamp = ?", row)) as result:
-                        trackpoints.append(DB.from_trackpoint(result.fetchone()))
-        return trackpoints
+    #
+    # photo support
+    #
 
+    @staticmethod
+    def from_photo(doc):
+        return Trackpoint(doc["timestamp"],
+                          doc["location"]["coordinates"][0],
+                          doc["location"]["coordinates"][1],
+                          doc["altitude"],
+                          filename = doc["filename_id"])
+
+    def add_photo(self, tp):
+        photos = self.photos()
+        try:
+            photos.insert({
+                "location" : { "type": "Point",
+                               "coordinates": [ tp.longitude, tp.latitude ]  
+                },
+                "filename" : tp.filename,
+                "altitude" : tp.altitude,
+                "timestamp" : tp.timestamp
+            })
+        except pymongo.errors.DuplicateKeyError:
+            return 0
+        return 1
+
+    def get_photo(self, filename):
+        photos = self.photos()
+        try:
+            with photos.find({'filename' : filename}) as c:
+                return next(c)
+        except StopIteration:
+            return None
+        
+    
     #
     # video support
     #
@@ -191,21 +220,6 @@ class DB:
                 track += [ DB.from_videopoint(row) for row in c]
         return track
 
-    def get_closest_videopoint(self, lon, lat, video_ids):
-        if isinstance(video_ids, str): video_ids = [ video_ids]
-        videopoints = self.videopoints()
-        points = []
-        for video_id in video_ids:
-            with videopoints.find({"$and" : [{"location": {"$nearSphere":[ lon, lat ]}},
-                                             {"video_id" : ObjectId(video_id)}]}).limit(1) as c:
-                tp = DB.from_videopoint(next(c))
-                points.append(tp)
-        idx = points.index(min(points, key=lambda tp:distance(tp.longitude, tp.latitude, lon, lat)))
-        print(idx, points[idx], video_ids[idx])
-        video = self.get_video_by_id(video_ids[idx])
-        offset = points[idx].timestamp - video["start_time"]
-        print(video["filename"], offset)
-
     #
     # geonetnames support
     #
@@ -248,8 +262,6 @@ class DB:
                 return DB.from_feature(next(c))
         except StopIteration:
             return None
-        
-                
 
 def make_schema():
     with DB() as db:
@@ -260,6 +272,10 @@ def make_schema():
         videos = db.videos()
         videos.create_index([("filename", pymongo.ASCENDING)],
                             name="video_filename_idx", unique=True)
+
+        photos = db.photos()
+        photos.create_index([("filename", pymongo.ASCENDING)],
+                            name="photo_filename_idx", unique=True)
 
         videopoints = db.videopoints()
         videopoints.create_index([("video_id", pymongo.ASCENDING),

@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import calendar
 from datetime import datetime
-import piexif
 import pytz
 import logging
 import os
+import re
 import shutil
 import sys
 
 from triptools import config
 from triptools import DB
-from triptools.common import Trackpoint, tp_dist, distance
+from triptools.common import Trackpoint, tp_dist, distance, format_datetime
+from triptools.exif_support import get_create_date, add_location_and_name
 
 logging.basicConfig(level=logging.INFO)
 
-def get_create_date(filename):
-    """Fetch Date/Time Original and convert to time_t"""
-    tz = pytz.timezone(config.get("Photo", "timezone"))
-    exif = piexif.load(filename)
-    try:
-        ts = exif["Exif"][piexif.ExifIFD.DateTimeOriginal].decode("ascii")
-        dt = datetime.strptime(ts, '%Y:%m:%d %H:%M:%S').replace(tzinfo=tz)
-        time_t = calendar.timegm(dt.utctimetuple())
-        return time_t
-    except:
-        raise Exception("Failed to extract Date/Time Original")
+def get_names():
+    name = os.path.abspath(config.get("Photo", "name"))
+    if os.path.isdir(name):
+        mask = re.compile(config.get("Photo", "mask"))
+        
+        for dirpath, dirnames, filenames in os.walk(name):
+            for filename in filenames:
+                if mask.match(filename):
+                    yield os.path.join(dirpath, filename)
+    else:
+        yield name
 
 def get_trackpoint(db, timestamp):
     """Fetch last trackpoint recorded before and first trackpoint
@@ -45,6 +45,7 @@ def get_trackpoint(db, timestamp):
         return a1 + (x - x1)*(a2 - a1)/(x2 - x1)
 
     tp1, tp2 = db.fetch_closest_trackpoints(timestamp)
+    print(tp1, tp2)
     if tp1 and tp2 and tp_dist(tp1, tp2) < max_dist:
         return Trackpoint(timestamp,
                           interp(tp1.longitude, tp1.timestamp, tp2.longitude, tp2.timestamp, timestamp),
@@ -75,9 +76,9 @@ def get_loc_name(db, trackpoint):
 
 def rename(name, dto, location, loc_name):
     photoconf = config["Photo"]
-    fileTZ = pytz.timezone(photoconf["img_timezone"])
-    timestamp = datetime.fromtimestamp(dto, tz=fileTZ)
-    time_str = timestamp.strftime(photoconf["img_timestamp_format"])
+    time_str = format_datetime(dto,
+                               photoconf["img_timestamp_format"],
+                               photoconf["img_timezone"])
 
     loc_str = loc_name.encode("ascii", "ignore").decode("ascii")
     
@@ -92,50 +93,17 @@ def rename(name, dto, location, loc_name):
         shutil.copyfile(name, target)
     return target
 
-def make_fraction(value, denom):
-    return int(value * denom), denom
-
-def make_triplet(value):
-    """create a vector of three rationals for value, minutes and seconds"""
-    value = abs(value)
-    degrees = int(value)
-    value = 60*(value-degrees)
-    minutes = int(value)
-    seconds = 60 * (value - minutes)
-    return [ make_fraction(degrees,10), make_fraction(minutes, 10), make_fraction(seconds, 100)]
     
-def add_tags(new_name, location, dto, loc_name):
-    photoconf = config["Photo"]
-    fileTZ = pytz.timezone(photoconf["img_timezone"])
-    timestamp = datetime.fromtimestamp(dto, tz=fileTZ)
-    time_str = timestamp.strftime(photoconf["comment_timestamp_format"])
-    comment = photoconf["comment_format"] % {"timestamp" : time_str,
-                                             "location" : loc_name}
-    import codecs
-    exif = piexif.load(new_name)
-    exif["0th"][piexif.ImageIFD.ImageDescription] = comment.encode("ascii", "ignore")
-    exif["Exif"][piexif.ExifIFD.UserComment] = "UNICODE\0".encode("ascii") + comment.encode("utf16")
-    exif["GPS"][piexif.GPSIFD.GPSVersionID] = 2
-    exif["GPS"][piexif.GPSIFD.GPSAltitude] = make_fraction(location.altitude, 10)
-    exif["GPS"][piexif.GPSIFD.GPSAltitudeRef] = 0 if location.altitude >= 0 else 1
-    exif["GPS"][piexif.GPSIFD.GPSLongitude] = make_triplet(location.longitude)
-    exif["GPS"][piexif.GPSIFD.GPSLongitudeRef] = 'E' if location.longitude >= 0 else 'W'
-    exif["GPS"][piexif.GPSIFD.GPSLatitude] = make_triplet(location.latitude)
-    exif["GPS"][piexif.GPSIFD.GPSLatitudeRef] = 'N' if location.latitude >= 0 else 'S'
-
-    piexif.insert(piexif.dump(exif), new_name)
-
 if __name__ == "__main__":
 
-    try:
-        with DB() as db:
-            filename = config.get("Photo", "name")
-            dto = get_create_date(filename)
-            location = get_trackpoint(db, dto)
-            loc_name = get_loc_name(db, location)
-            new_name = rename(filename, dto, location, loc_name)
-            add_tags(new_name, location, dto, loc_name)
-
-    except Exception as e:
-        logging.getLogger(__name__).error(e, exc_info=True)
-        sys.exit(1)
+    with DB() as db:
+        for filename in get_names():
+            try:
+                logging.getLogger(__name__).info("Processing %s" % filename)
+                dto = get_create_date(filename)
+                location = get_trackpoint(db, dto)
+                loc_name = get_loc_name(db, location)
+                new_name = rename(filename, dto, location, loc_name)
+                add_location_and_name(new_name, location, dto, loc_name)
+            except Exception as e:
+                logging.getLogger(__name__).error(e)
