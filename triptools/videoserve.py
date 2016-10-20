@@ -92,7 +92,7 @@ def get_video(id):
             return video
     raise Exception("Invalid video id '%s'" % id)
 
-@app.route('/play/<float:lon>/<float:lat>/<int:zoom>', methods=["POST"])
+@app.route('/play/<float:lon>/<float:lat>/<int:zoom>', methods=["GET", "POST"])
 def play(lon, lat, zoom):
 
     def get_closest(lon, lat):
@@ -114,8 +114,9 @@ def play(lon, lat, zoom):
     video, timestamp, offset = get_closest(lon, lat)
     fname = video["filename"]
     name, ext = os.path.splitext(fname)
-    return redirect("sendvid/" + str(video["_id"]) + "/%d/vid" % offset + ext + "#t=%d" % offset, code=302)
+    return redirect("sendvid/" + str(video["_id"]) + "/%d/vid" % offset + ext + "#t=%d,%d" % (offset, video["duration"]), code=302)
 
+@lru_cache(maxsize=100)
 def check_map(filename):
     base, _ = os.path.splitext(filename)
     for section in config.sections():
@@ -123,6 +124,7 @@ def check_map(filename):
             map_name = base + config.get(section, "name_suffix")
             if os.access(map_name, os.R_OK):
                 return map_name
+    logging.getLogger(__name__).info("Sending video %s" % filename)
     return filename
 
 @app.route("/sendvid/<id>/<int:offset>/<path:path>", methods=["GET"])
