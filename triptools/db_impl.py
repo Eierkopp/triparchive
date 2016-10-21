@@ -1,3 +1,4 @@
+from contexttimer import timer
 import logging
 import re
 import pymongo
@@ -157,6 +158,7 @@ class DB:
         else:
             return None
 
+    #@timer(logger=logging.getLogger())
     def get_video(self, filename):
         videos = self.videos()
         try:

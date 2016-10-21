@@ -18,7 +18,7 @@ from tqdm import tqdm
 from triptools import config
 from triptools import DB
 from triptools import osm_mapper
-from triptools.common import Track, Trackpoint
+from triptools.common import Track, Trackpoint, get_names
 from triptools.configuration import MOVIE_PROFILE_PREFIX
 
 logging.basicConfig(level=logging.INFO)
@@ -197,34 +197,33 @@ def build_profile():
 
 if __name__ == "__main__":
 
-    try:
-        filename = config.get("Video", "name")
-        filename = os.path.abspath(filename)
-        logging.getLogger(__name__).info("Processing video %s" % filename)
+    for filename in get_names(config.get("Video", "name"), config.get("Video", "mask")):
+        try:
+            logging.getLogger(__name__).info("Processing video %s" % filename)
         
-        target_name = make_target(filename)
-        profile = build_profile()
-       
-        with DB() as db:
-            video_info = db.get_video(filename)
-            if video_info is None:
-                raise Exception("Video needs to be imported first")
-            video_id = str(video_info["_id"])
-            start_time = video_info["start_time"]
-            duration = video_info["duration"]
+            target_name = make_target(filename)
+            profile = build_profile()
 
-            if config.getboolean("Video", "use_camera_track"):
-                track_points = db.fetch_videopoints(video_id)
-            else:
-                track_points = db.fetch_trackpoints(start_time, start_time + duration)
-            track = Track(track_points)
-            
-            maps_movie = makeMaps(filename, track, start_time, duration)
+            with DB() as db:
+                video_info = db.get_video(filename)
+                if video_info is None:
+                    raise Exception("Video needs to be imported first")
+                video_id = str(video_info["_id"])
+                start_time = video_info["start_time"]
+                duration = video_info["duration"]
 
-            renderOverlay(filename, maps_movie, target_name, profile)
+                if config.getboolean("Video", "use_camera_track"):
+                    track_points = db.fetch_videopoints(video_id)
+                else:
+                    track_points = db.fetch_trackpoints(start_time, start_time + duration)
+                track = Track(track_points)
 
-            os.remove(maps_movie)
-            
-    except Exception as e:
-        logging.getLogger(__name__).error(e, exc_info=True)
-        sys.exit(1)
+                maps_movie = makeMaps(filename, track, start_time, duration)
+
+                renderOverlay(filename, maps_movie, target_name, profile)
+
+                os.remove(maps_movie)
+                
+        except Exception as e:
+            logging.getLogger(__name__).error(e)
+            logging.getLogger(__name__).debug(e, exc_info=True)

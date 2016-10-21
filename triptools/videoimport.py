@@ -17,6 +17,7 @@ import types
 
 from triptools import config
 from triptools import DB
+from triptools.common import get_names
 
 logging.basicConfig(level=logging.INFO)
 
@@ -117,36 +118,42 @@ def fetch_videopoints(filename):
     guess_list.sort(key=lambda a:a[1])
     return points, guess_list[-1][0]
     
-def import_videopoints(filename):
+def import_videopoints(db, filename):
+
+    video = db.get_video(filename)
+    if video and not config.getboolean("Video", "refresh"):
+        logging.getLogger(__name__).info("Video %s already imported" % filename)
+        return
 
     duration = fetch_duration(filename)
 
     count = 0
     points, start_time = fetch_videopoints(filename)
 
-    with DB() as db:
-        video_id = db.get_video_id(filename, start_time=start_time, duration=duration)
-        db.remove_points(video_id)
+    video_id = db.get_video_id(filename, start_time=start_time, duration=duration)
+    db.remove_points(video_id)
 
-        for lon, lat, alt, offset in points:
-            try:
-                count += db.add_video_point(lon, lat, alt, offset+start_time, video_id)
-            except:
-                import traceback
-                traceback.print_exc()
+    for lon, lat, alt, offset in points:
+        try:
+            count += db.add_video_point(lon, lat, alt, offset+start_time, video_id)
+        except:
+            import traceback
+            traceback.print_exc()
 
     logging.getLogger(__name__).info("file '%s' imported, %d videopoints added to DB" % (filename, count))
             
 if __name__ == "__main__":
 
-    try:
-        filename = config.get("Video", "name")
-        filename = os.path.abspath(filename)
-        if not os.access(filename, os.R_OK):
-            raise Exception("cannot read video file '%s'" % filename)
+    db = DB()
 
-        import_videopoints(filename)
+    for filename in get_names(config.get("Video", "name"), config.get("Video", "mask")):
+        try:
+            logging.getLogger(__name__).info("Processing video %s" % filename)
+            if not os.access(filename, os.R_OK):
+                raise Exception("cannot read video file '%s'" % filename)
+
+            import_videopoints(db, filename)
         
-    except Exception as e:
-        logging.getLogger(__name__).error(e, exc_info=True)
-        sys.exit(1)
+        except Exception as e:
+            logging.getLogger(__name__).error(e)
+            logging.getLogger(__name__).debug(e, exc_info=True)

@@ -137,7 +137,7 @@ def format_datetime(timestamp, format, timezone):
 def get_names(name, mask):
     name = os.path.abspath(name)
     if os.path.isdir(name):
-        mask = re.compile(mask)
+        mask = re.compile(mask+"$")
         
         for dirpath, dirnames, filenames in os.walk(name):
             for filename in filenames:
@@ -145,3 +145,5 @@ def get_names(name, mask):
                     yield os.path.join(dirpath, filename)
     else:
         yield name
+
+
