@@ -1,10 +1,12 @@
 import calendar
 from datetime import datetime
-import pytz
-import time
 import math
 import numpy as np
+import os
+import pytz
+import re
 from scipy.interpolate import splev, splrep
+import time
 
 class Trackpoint:
 
@@ -132,3 +134,14 @@ def format_datetime(timestamp, format, timezone):
     timestamp = datetime.fromtimestamp(timestamp, tz=tz)
     return timestamp.strftime(format)
 
+def get_names(name, mask):
+    name = os.path.abspath(name)
+    if os.path.isdir(name):
+        mask = re.compile(mask)
+        
+        for dirpath, dirnames, filenames in os.walk(name):
+            for filename in filenames:
+                if mask.match(filename):
+                    yield os.path.join(dirpath, filename)
+    else:
+        yield name

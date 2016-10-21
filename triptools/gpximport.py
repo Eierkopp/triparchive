@@ -10,6 +10,7 @@ import sys
 from triptools import config
 from triptools import Trackpoint
 from triptools import DB
+from triptools.common import get_names
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,15 +31,12 @@ def import_gpxtrack(filename):
             
 if __name__ == "__main__":
 
-    try:
-        filename = config.get("GPX", "name")
-        if not os.access(filename, os.R_OK):
-            raise Exception("cannot read gpx file '%s'" % filename)
-
-        import_gpxtrack(filename)
-        
-    except Exception as e:
-        logging.getLogger(__name__).error(e, exc_info=True)
-        sys.exit(1)
+    for filename in get_names(config.get("GPX", "name"), config.get("GPX", "mask")):
+        try:
+            if not os.access(filename, os.R_OK):
+                raise Exception("cannot read gpx file '%s'" % filename)
+            import_gpxtrack(filename)
+        except Exception as e:
+            logging.getLogger(__name__).error(e)
 
         
