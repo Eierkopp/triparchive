@@ -10,6 +10,7 @@ import sys
 
 from flask import Flask, request, Response, redirect, render_template, make_response, send_file
 from werkzeug.routing import FloatConverter as BaseFloatConverter
+from gevent.wsgi import WSGIServer
 
 from triptools import config
 from triptools import DB
@@ -114,7 +115,10 @@ def play(lon, lat, zoom):
     video, timestamp, offset = get_closest(lon, lat)
     fname = video["filename"]
     name, ext = os.path.splitext(fname)
-    return redirect("sendvid/" + str(video["_id"]) + "/%d/vid" % offset + ext + "#t=%d,%d" % (offset, video["duration"]), code=302)
+
+    url = "/sendvid/" + str(video["_id"]) + "/%d/vid" % offset + ext + "#t=%d,%d" % (offset, video["duration"])
+    type = mimetype=mimetypes.guess_type(fname)[0] 
+    return render_template("video.jinja2", url=url, type=type)
 
 @lru_cache(maxsize=100)
 def check_map(filename):
@@ -129,13 +133,25 @@ def check_map(filename):
 
 @app.route("/sendvid/<id>/<int:offset>/<path:path>", methods=["GET"])
 def sendvid(id, offset, path=None):
+
+    def stream_file(filename, start, length):
+        with open(filename, 'rb') as f:
+            offset = 0
+            while offset < length:
+                f.seek(start + offset)
+                chunk = config.getint("Webserver", "chunk_size")
+                if offset + chunk > length:
+                    chunk = length - offset
+                offset += chunk
+                yield f.read(chunk)
+    
     video = get_video(id)
     filename = check_map(video["filename"])
     range_header = request.headers.get('Range', None)
 
     if not range_header:
         return send_file(filename)
-
+    
     size = os.path.getsize(filename)    
     byte1, byte2 = 0, None
     
@@ -148,15 +164,8 @@ def sendvid(id, offset, path=None):
     length = size - byte1
     if byte2 is not None:
         length = min(byte2 - byte1 + 1, length)
-    if length > 10*1024*1024:
-        length = config.getint("Webserver", "chunk_size")
-    
-    data = None
-    with open(filename, 'rb') as f:
-        f.seek(byte1)
-        data = f.read(length)
 
-    rv = Response(data, 
+    rv = Response(stream_file(filename, byte1, length),
         206,
         mimetype=mimetypes.guess_type(path)[0], 
         direct_passthrough=True)
@@ -175,9 +184,12 @@ if __name__ == "__main__":
             video_ids = db.get_video_ids(name_mask)
             videos = [ db.get_video_by_id(id) for id in video_ids]
             track_points = db.fetch_videopoints(video_ids)
-            app.run(host=config.get("Webserver", "interface"),
-                    port=config.getint("Webserver", "port"),
-                    debug=config.getboolean("Webserver", "debug"))
+
+            http_server = WSGIServer((config.get("Webserver", "interface"), config.getint("Webserver", "port")), app)
+            http_server.serve_forever()
+            
+#            app.run(host=config.get("Webserver", "interface"),
+#                    port=config.getint("Webserver", "port"))
             
     except Exception as e:
         logging.getLogger(__name__).error(e, exc_info=True)
