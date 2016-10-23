@@ -17,6 +17,10 @@ sp_conf = config["Speedcams"]
 def download(url):
     response = urlopen(url)
     data = response.read()
+#    with open("/tmp/data.out", "rb") as inf:
+#        data = inf.read()
+#    with open("/tmp/data.out", "wb") as outf:
+#        outf.write(data)
     return gzip.decompress(data).decode("utf8")
 
 def parse_lines(fName):
@@ -47,19 +51,22 @@ def parse_lines(fName):
 def export(data):
     missing_translation = set()
     default_ft = sp_conf.get("default_feature")
-    args = [config.get("Tools", "gpsbabel_path")] + shlex.split("-i csv -f - -o garmin_gpi -F") + [sp_conf["poi_file"]]
+    args = [config.get("Tools", "gpsbabel_path")] + shlex.split("-i unicsv -f - -o garmin_gpi,units=s,proximitx=0.2 -F") + [sp_conf["poi_file"]]
     
     with subprocess.Popen(args, stdin=subprocess.PIPE) as gpsbabel:
+        gpsbabel.stdin.write(b"No,Latitude,Longitude,Name,Symbol\n")
+        count=1
         for lon, lat, ft, max_speed in parse_lines(data):
             ft_key = ("translation_" + ft).replace(" ", "")
             if ft_key not in sp_conf and ft_key not in missing_translation:
                 logging.getLogger(__name__).warn("no translation for %s" % ft_key)
                 missing_translation.add(ft_key)
                 
-            feature = sp_conf.get(ft_key, default_ft)
+            feature = "%s-%d" % (sp_conf.get(ft_key, default_ft), count)
             speed_ind = "@%.0f" % max_speed if max_speed else ""
-            line = '%f,%f,"%s%s"\n' % (lon, lat, feature, speed_ind)
+            line = '%d,%f,%f,%s%s\n' % (count, lat, lon, feature, speed_ind)
             gpsbabel.stdin.write(line.encode("utf8"))
+            count += 1
     
 if __name__ == "__main__":
 
