@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import calendar
-from datetime import datetime
-import pytz
 import logging
 import os
 from pynmea.nmea import GPRMC, GPGGA
@@ -17,7 +14,7 @@ import types
 
 from triptools import config
 from triptools import DB
-from triptools.common import get_names
+from triptools.common import get_names, parse_datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,8 +23,7 @@ TIME_EXPR = re.compile(r"^(\d\d):(\d\d):(\d\d),(\d\d\d) --> .*$")
 def parse_nmea_time(gprmc):
     if gprmc.datestamp and gprmc.timestamp:
         ts_str = "%s20%s %s" % (gprmc.datestamp[0:4], gprmc.datestamp[4:], gprmc.timestamp[0:6])
-        dt = datetime.strptime(ts_str, "%d%m%Y %H%M%S")
-        ts = calendar.timegm(dt.utctimetuple())
+        ts = parse_datetime(ts_str, %d%m%Y %H%M%S, config.get("Video", "camera_timezone"))
         return ts
     else:
         return None
