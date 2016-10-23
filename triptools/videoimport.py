@@ -23,7 +23,7 @@ TIME_EXPR = re.compile(r"^(\d\d):(\d\d):(\d\d),(\d\d\d) --> .*$")
 def parse_nmea_time(gprmc):
     if gprmc.datestamp and gprmc.timestamp:
         ts_str = "%s20%s %s" % (gprmc.datestamp[0:4], gprmc.datestamp[4:], gprmc.timestamp[0:6])
-        ts = parse_datetime(ts_str, %d%m%Y %H%M%S, config.get("Video", "camera_timezone"))
+        ts = parse_datetime(ts_str, "%d%m%Y %H%M%S", config.get("Video", "camera_timezone"))
         return ts
     else:
         return None
