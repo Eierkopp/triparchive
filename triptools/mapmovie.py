@@ -64,7 +64,7 @@ def makeMaps(filename, track, start_time, duration):
     n = 0
     db = DB()
 
-    ticks = [t/framerate + start_time for t in range(int(duration * framerate))]
+    ticks = [t/framerate + start_time for t in range(int(duration * framerate)+1)]
     
     for t in tqdm(ticks):
 
