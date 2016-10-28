@@ -278,16 +278,21 @@ def make_schema():
         photos = db.photos()
         photos.create_index([("filename", pymongo.ASCENDING)],
                             name="photo_filename_idx", unique=True)
+        photos.create_index([("location", pymongo.GEOSPHERE)],
+                            bits=24,
+                            name="photos_location_idx")
 
         videopoints = db.videopoints()
         videopoints.create_index([("video_id", pymongo.ASCENDING),
                                   ("timestamp", pymongo.ASCENDING)],
-                                 name="videopoints_timestamp_video_idx", unique=True)
+                                 name="videopoints_video_timestamp_idx", unique=True)
         videopoints.create_index([("location", pymongo.GEOSPHERE)],
-                                 name="videopoints_location_video_idx")
+                                 bits=24,
+                                 name="videopoints_location_idx")
 
         gns = db.geonetnames()
         gns.create_index([("location", pymongo.GEOSPHERE)],
-                          name="location_idx",unique=False, background=True)
+                         bits=24,
+                         name="gns_location_idx")
 
 make_schema()

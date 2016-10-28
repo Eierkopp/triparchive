@@ -72,7 +72,6 @@ def export(data):
             feature = "%s-%d" % (sp_conf.get(ft_key, default_ft), count)
             speed_ind = "@%s" % max_speed if max_speed else ""
             line = '%d,%f,%f,%s%s,"Waypoint",%d\n' % (count, lat, lon, feature, speed_ind,  proximity)
-            print(line)
             gpsbabel.stdin.write(line.encode("utf8"))
             count += 1
 

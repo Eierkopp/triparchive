@@ -79,7 +79,6 @@ def rename(name, dto, location, loc_name):
         logging.getLogger(__name__).info("Copying %s to %s", name, target)
         shutil.copyfile(name, target)
     return target
-
     
 if __name__ == "__main__":
 
