@@ -32,7 +32,6 @@ def get_trackpoint(db, timestamp):
         return a1 + (x - x1)*(a2 - a1)/(x2 - x1)
 
     tp1, tp2 = db.fetch_closest_trackpoints(timestamp)
-    print(tp1, tp2)
     if tp1 and tp2 and tp_dist(tp1, tp2) < max_dist:
         return Trackpoint(timestamp,
                           interp(tp1.longitude, tp1.timestamp, tp2.longitude, tp2.timestamp, timestamp),
@@ -54,7 +53,7 @@ def get_trackpoint(db, timestamp):
     raise Exception("No trackpoint found")
 
 def get_loc_name(db, trackpoint):
-    feature = db.get_nearest_feature(trackpoint, ["P", "S", "R"])
+    feature = db.get_nearest_feature(trackpoint)
     if (feature is None
         or distance(trackpoint.longitude, trackpoint.latitude,
                     feature.longitude, feature.latitude) > config.getfloat("Photo", "max_feature_distance")):
@@ -92,4 +91,4 @@ if __name__ == "__main__":
                 new_name = rename(filename, dto, location, loc_name)
                 add_location_and_name(new_name, location, dto, loc_name)
             except Exception as e:
-                logging.getLogger(__name__).error(e)
+                logging.getLogger(__name__).error(e, exc_info=True)

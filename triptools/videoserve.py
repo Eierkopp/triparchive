@@ -89,7 +89,7 @@ def map(lon, lat, zoom):
 
 def get_video(id):
     for video in videos:
-        if str(video["_id"]) == id:
+        if video["id"] == id:
             return video
     raise Exception("Invalid video id '%s'" % id)
 
@@ -106,7 +106,7 @@ def play(lon, lat, zoom):
                 best = tp
                 best_dist = new_dist
         video = get_video(best.video_id)
-        return video, best.timestamp, best.timestamp - video["start_time"]
+        return video, best.timestamp, best.timestamp - video["starttime"]
     
     x = int(request.form["img.x"])
     y = int(request.form["img.y"])
@@ -116,7 +116,7 @@ def play(lon, lat, zoom):
     fname = video["filename"]
     name, ext = os.path.splitext(fname)
 
-    url = "/sendvid/" + str(video["_id"]) + "/%d/vid" % offset + ext + "#t=%d,%d" % (offset, video["duration"])
+    url = "/sendvid/" + str(video["id"]) + "/%d/vid" % offset + ext + "#t=%d,%d" % (offset, video["duration"])
     type = mimetype=mimetypes.guess_type(fname)[0] 
     return render_template("video.jinja2", url=url, type=type)
 
@@ -131,7 +131,7 @@ def check_map(filename):
     logging.getLogger(__name__).info("Sending video %s" % filename)
     return filename
 
-@app.route("/sendvid/<id>/<int:offset>/<path:path>", methods=["GET"])
+@app.route("/sendvid/<int:id>/<int:offset>/<path:path>", methods=["GET"])
 def sendvid(id, offset, path=None):
 
     def stream_file(filename, start, length):
@@ -192,6 +192,6 @@ if __name__ == "__main__":
 #                    port=config.getint("Webserver", "port"))
             
     except Exception as e:
-        logging.getLogger(__name__).error(e, exc_info=True)
+        logging.getLogger(__name__).error(e)
         sys.exit(1)
 

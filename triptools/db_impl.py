@@ -1,188 +1,180 @@
-from contexttimer import timer
+#!/usr/bin/env python3
+import json
 import logging
+import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.extras import Json
 import re
-import pymongo
-from bson.objectid import ObjectId
-import traceback
-import types
+from types import MethodType
 
 from triptools import config
 from triptools.common import Trackpoint, Feature, distance
 
-
 logging.basicConfig(level=logging.INFO)
+
+class ConnWrap:
+    """Wrapper for connections to support pool"""
+
+    def __init__(self, pool, conn):
+        self.pool = pool
+        self.conn = conn
+
+    def __getattr__(self, attr_name):
+        if hasattr(self.conn, attr_name):
+            return getattr(self.conn, attr_name)
+        
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.conn.__exit__(exc_type, exc_val, exc_tb)
+        self.pool.putconn(self.conn)
 
 class DB:
 
     def __init__(self):
-        self.host = config.get("DB", "host")
-        self.port = config.getint("DB", "port")
-        self.db_name = config.get("DB", "database")
-        self.__conn = pymongo.MongoClient(self.host, self.port)
+        db_conf = config["DB"]
+        self.pool = ThreadedConnectionPool(5, 50,
+                                           database=db_conf["database"],
+                                           host=db_conf["host"],
+                                           port=db_conf["port"],
+                                           user=db_conf["user"],
+                                           password=db_conf["password"])
+        self.__make_schema()
+        
+    def __make_schema(self):
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                # trackpoints
+                c.execute("CREATE TABLE IF NOT EXISTS trackpoints (timepoint int8 primary key, location geography(Point,4326), altitude float)")
+                
+                # videos
+                c.execute("create table if not exists videos (id SERIAL primary key, filename text, starttime int8, duration float )")
+                c.execute("create unique index if not exists filename_ux on videos (filename)")
+                
+                #videopoints
+                c.execute("CREATE TABLE IF NOT EXISTS videopoints (video_id int references videos(id), timepoint int8, altitude float, location geography(Point,4326), primary key (video_id, timepoint))")
+                c.execute("CREATE INDEX IF NOT EXISTS videopoints_location_idx ON videopoints USING GIST (location)")
+                # geonetnames
+                c.execute("CREATE TABLE IF NOT EXISTS geonetnames (name text, location geography(Point,4326), feature text, country text)")
+                c.execute("CREATE INDEX IF NOT EXISTS geonetnames_location_idx ON geonetnames USING GIST (location)")
 
     def __enter__(self):
         return self
+                
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.pool.closeall()
 
-    def __exit__(self, type, value, tb):
-        self.__conn.close()
-        
-    def trackpoints(self):
-        return self.__setup_collection("trackpoints")
+    def getconn(self):
+        conn = self.pool.getconn()
+        return ConnWrap(self.pool, conn)
 
-    def geonetnames(self):
-        return self.__setup_collection("geonetnames")
-
-    def videopoints(self):
-        return self.__setup_collection("videopoints")
-
-    def videos(self):
-        return self.__setup_collection("videos")
-
-    def photos(self):
-        return self.__setup_collection("photos")
-
-    def geonetnames(self):
-        return self.__setup_collection("geonetnames")
-
-    def __setup_collection(self, coll_name):
-        db = self.__conn.get_database(self.db_name)
-        return db.get_collection(coll_name)
-    
     #
     # trackpoints support
     #
-                    
+ 
     @staticmethod
-    def from_trackpoint(doc):
-        return Trackpoint(doc["timestamp"],
-                          doc["location"]["coordinates"][0],
-                          doc["location"]["coordinates"][1],
-                          doc["altitude"])
+    def from_trackpoint(row):
+        return Trackpoint(row[0], row[1], row[2], row[3])
 
-    def add_trackpoint(self, trackpoints, tp):
-        try:
-            trackpoints.insert({
-                "timestamp" : tp.timestamp,
-                "location" : { "type": "Point",
-                               "coordinates": [ tp.longitude, tp.latitude ]
-                },
-                "altitude" : tp.altitude
-            })
-        except pymongo.errors.DuplicateKeyError:
-            return 0
-        return 1
+    def add_trackpoint(self, conn, tp):
+        with conn.cursor() as c:
+            c.execute("INSERT INTO trackpoints (timepoint, location, altitude) VALUES (%(ts)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s) ON CONFLICT (timepoint) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s",
+                      { "ts" : tp.timestamp,
+                        "lon" : tp.longitude,
+                        "lat" : tp.latitude,
+                        "alt" : tp.altitude})
+            return c.rowcount
             
     def fetch_trackpoints(self, start_ts, end_ts):
-        trackpoints = self.trackpoints()
-        with trackpoints.find({  "$and" : [ {"timestamp" : { "$gte" : start_ts}},
-                                            {"timestamp" : { "$lte" : end_ts}} ]}).sort([("timestamp", pymongo.ASCENDING)]) as c:
-            return [ DB.from_trackpoint(doc) for doc in c ]
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude FROM trackpoints "
+                          "WHERE timepoint >= %s AND timepoint <= %s ORDER BY timepoint ASC",
+                          (start_ts, end_ts))
+                result = []
+                for row in c:
+                    print(c.description)
+                    print(row)
+                    result.append(DB.from_trackpoint(row))
+                return result
 
     def fetch_closest_trackpoints(self, timestamp):
-        trackpoints = self.trackpoints()
-        try:
-            with trackpoints.find({'timestamp' : { '$gte' : timestamp } }).sort([('timestamp', pymongo.ASCENDING)]).limit(1) as c:
-                best_above = next(c)
-        except StopIteration:
-            best_above = None
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                try:
+                    c.execute("select timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude from trackpoints where timepoint >= %s order by timepoint asc limit 1", (timestamp,))
+                    best_above = next(c)
+                except StopIteration:
+                    best_above = None
 
-        try:   
-            with trackpoints.find({'timestamp' : { '$lt' : timestamp } }).sort([('timestamp', pymongo.DESCENDING)]).limit(1) as c:
-                best_below = next(c)
-        except StopIteration:
-            best_below = None
+                try:   
+                    c.execute("select timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude from trackpoints where timepoint < %s order by timepoint desc limit 1", (timestamp,))
+                    best_below = next(c)
+                except StopIteration:
+                    best_below = None
             
         tp1 = DB.from_trackpoint(best_below) if best_below else None
         tp2 = DB.from_trackpoint(best_above) if best_above else None
         return tp1, tp2
-
-    #
-    # photo support
-    #
-
-    @staticmethod
-    def from_photo(doc):
-        return Trackpoint(doc["timestamp"],
-                          doc["location"]["coordinates"][0],
-                          doc["location"]["coordinates"][1],
-                          doc["altitude"],
-                          filename = doc["filename_id"])
-
-    def add_photo(self, tp):
-        photos = self.photos()
-        try:
-            photos.insert({
-                "location" : { "type": "Point",
-                               "coordinates": [ tp.longitude, tp.latitude ]  
-                },
-                "filename" : tp.filename,
-                "altitude" : tp.altitude,
-                "timestamp" : tp.timestamp
-            })
-        except pymongo.errors.DuplicateKeyError:
-            return 0
-        return 1
-
-    def get_photo(self, filename):
-        photos = self.photos()
-        try:
-            with photos.find({'filename' : filename}) as c:
-                return next(c)
-        except StopIteration:
-            return None
-        
     
     #
     # video support
     #
 
     @staticmethod
-    def from_videopoint(doc):
-        return Trackpoint(doc["timestamp"],
-                          doc["location"]["coordinates"][0],
-                          doc["location"]["coordinates"][1],
-                          doc["altitude"],
-                          video_id = str(doc["video_id"]))
+    def from_videopoint(row):
+        return Trackpoint(row[0],
+                          row[1],
+                          row[2],
+                          row[3],
+                          video_id = row[4])
+        
+    def get_video_id(self, filename, starttime=None, duration=None):
+        result = None
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("select id from videos where filename = %s", (filename,))
+                rows = c.fetchall()
+                if rows:
+                    result = rows[0][0]
+                elif starttime and duration:
+                    c.execute("insert into videos (filename, starttime, duration) values (%s, %s, %s) returning id", (filename, starttime, duration))
+                    rows = c.fetchall()
+                    if rows:
+                        result = rows[0][0]
+        return result
 
-    def get_video_id(self, filename, start_time=None, duration=None):
-        videos = self.videos()
-        with videos.find({ "filename" : filename}) as cursor:
-            ids = [ doc["_id"] for doc in cursor ]
-        if ids:
-            return str(ids[0])
-        if start_time and duration:
-            return str(videos.insert({"filename" : filename,
-                                      "start_time" : start_time,
-                                      "duration" : duration
-            }))
-        else:
-            return None
-
-    #@timer(logger=logging.getLogger())
     def get_video(self, filename):
         videos = self.videos()
         try:
             with videos.find({ "filename" : filename}) as cursor:
                 return next(cursor)
         except StopIteration:
-            return None
+            return None                  
 
     def get_video_by_id(self, id):
-        videos = self.videos()
         try:
-            with videos.find({ "_id" : ObjectId(id)}) as cursor:
-                return next(cursor)
+            with self.getconn() as conn:
+                with conn.cursor() as c:
+                    c.execute("select id, filename, starttime, duration from videos where id = %s", (id,))
+                    row = next(c)
+                    return { "id" : row[0],
+                             "filename" : row[1],
+                             "starttime" : row[2],
+                             "duration" : row[3] }
         except StopIteration:
             return None
 
     def get_video_ids(self, filemask):
         expr = re.compile(filemask)
         ids = []
-        videos = self.videos()
-        with videos.find() as cursor:
-            for doc in cursor:
-                if expr.search(doc["filename"]):
-                    ids.append(str(doc["_id"]))
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("select id, filename from videos")
+                for vid, filename in c:
+                    if expr.search(filename):
+                        ids.append(vid)
         return ids
 
     def remove_video(self, filename):
@@ -193,106 +185,69 @@ class DB:
         for oid in oids:
             videopoints.remove({"video_id" : oid})
             videos.remove({"_id" : oid})
-
+                          
     def remove_points(self, video_id):
-        videopoints = self.videopoints()
-        videopoints.remove({"video_id" : ObjectId(video_id)})
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("delete from videopoints where video_id = %s", (video_id,))
+                return c.rowcount
 
-    def add_video_point(self, lon, lat, alt, timestamp, video_id):
-        videopoints = self.videopoints()
-        try:
-            videopoints.insert({
-                    "location" : { "type": "Point",
-                                   "coordinates": [ lon, lat ]  
-                                   },
-                "video_id" : ObjectId(video_id),
-                "altitude" : alt,
-                "timestamp" : timestamp,
-            })
-        except pymongo.errors.DuplicateKeyError:
-            return 0
-        return 1
+    def add_video_point(self, conn, lon, lat, alt, timepoint, video_id):
+        with conn.cursor() as c:
+            c.execute("insert into videopoints (video_id, timepoint, altitude, location) "
+                      "values (%s,%s,%s,ST_SetSRID(ST_Point(%s, %s),4326))",
+                      (video_id, timepoint, alt, lon, lat))
+            return c.rowcount
 
     def fetch_videopoints(self, video_ids):
         if isinstance(video_ids, str): video_ids = [ video_ids]
         track = []
-        videopoints = self.videopoints()
-        for id in video_ids:
-            with videopoints.find({"video_id" : ObjectId(id)}).sort([("timestamp", pymongo.ASCENDING)]) as c:
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("select timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, video_id from videopoints where video_id in ('" + "','".join(map(str, video_ids)) + "') order by video_id, timepoint")
                 track += [ DB.from_videopoint(row) for row in c]
         return track
 
     #
     # geonetnames support
     #
-
+        
     @staticmethod
-    def from_feature(doc):
-        return Feature(doc["name"],
-                       doc["location"]["coordinates"][0],
-                       doc["location"]["coordinates"][1],
-                       doc["feature"])
+    def from_feature(row):
+        return Feature(row[0],
+                       row[1],
+                       row[2],
+                       row[3])
     
     def remove_gns(self, country):
-        gns = self.geonetnames()
-        gns.remove({ "country" : country})
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("delete from geonetnames where country = %s", (country,))
+                return c.rowcount
 
-    def add_gns(self, gns, country, lon, lat, name, feature):
-        gns.insert({
-            "location" : { "type": "Point",
-                           "coordinates": [ lon, lat ] 
-            },
-            "feature" : feature,
-            "name" : name,
-            "country" : country
-        })
-        return 1
+    def add_gns(self, conn, country, lon, lat, name, feature):
+        with conn.cursor() as c:
+            c.execute("insert into geonetnames (location, name, country, feature) values (ST_SetSRID(ST_Point(%s, %s),4326), %s, %s, %s)",
+                      (lon, lat, name, country, feature))
+            return c.rowcount
 
     def get_nearest_feature(self, tp, features=["P"]):
-        gns = self.geonetnames()
-
-        filter = {"location": {"$nearSphere":[ tp.longitude,
-                                               tp.latitude ]}}
-        
-        if len(features) == 1:
-            filter["feature"] = features[0]
-        elif len(features) > 1:
-            filter["$or"] = [ {"feature" : f} for f in features]
-
-        try:
-            with gns.find(filter).limit(1) as c:
+        with self.getconn() as conn:
+            feature_expr = "('" + "','".join(features) + "')"
+            with conn.cursor() as c:
+                c.execute("select name, ST_X(location::geometry), ST_Y(location::geometry), feature from geonetnames where feature in " + feature_expr + " order by location <-> ST_SetSRID(ST_Point(%s, %s), 4326) limit 1",
+                          (tp.longitude, tp.latitude))
                 return DB.from_feature(next(c))
-        except StopIteration:
-            return None
+        
+if __name__ == "__main__":
 
-def make_schema():
-    with DB() as db:
-        tps = db.trackpoints()
-        tps.create_index([("timestamp", pymongo.ASCENDING)],
-                         name="trackpoint_timestamp_idx", unique=True)
+    db = DB("postgresql://triparchive:triparchive@synology:5433/triparchive")
 
-        videos = db.videos()
-        videos.create_index([("filename", pymongo.ASCENDING)],
-                            name="video_filename_idx", unique=True)
+    tp1, tp2 = db.fetch_closest_trackpoints(1151769313)
 
-        photos = db.photos()
-        photos.create_index([("filename", pymongo.ASCENDING)],
-                            name="photo_filename_idx", unique=True)
-        photos.create_index([("location", pymongo.GEOSPHERE)],
-                            bits=24,
-                            name="photos_location_idx")
+    print(db.get_nearest_feature(tp1, ["P", "S"]))
+    
+    
 
-        videopoints = db.videopoints()
-        videopoints.create_index([("video_id", pymongo.ASCENDING),
-                                  ("timestamp", pymongo.ASCENDING)],
-                                 name="videopoints_video_timestamp_idx", unique=True)
-        videopoints.create_index([("location", pymongo.GEOSPHERE)],
-                                 bits=24,
-                                 name="videopoints_location_idx")
-
-        gns = db.geonetnames()
-        gns.create_index([("location", pymongo.GEOSPHERE)],
-                         bits=24,
-                         name="gns_location_idx")
-
-make_schema()
+                
+                           
