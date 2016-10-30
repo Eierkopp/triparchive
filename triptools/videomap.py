@@ -14,9 +14,9 @@ def make_videomap(mask):
     with DB() as db:
         video_ids = db.get_video_ids(mask)
 
-    track = db.fetch_videopoints(video_ids)
-    if len(track)< 2:
-        raise Exception("track too short")
+        track = db.fetch_videopoints(video_ids)
+        if len(track)< 2:
+            raise Exception("track too short")
     
     bb = osm_mapper.get_bounding_box(track,
                                      config.getfloat("Map", "marg_pct"),
@@ -27,7 +27,10 @@ def make_videomap(mask):
                                                   config.getint("Map", "height")))
     surface = osm_mapper.as_surface(image)
     osm_mapper.draw_trackpoints(map_tile, surface, track)
-    surface.write_to_png(config.get("Map", "target"))
+    target = config.get("Map", "target")
+    surface.write_to_png(target)
+
+    logging.getLogger(__name__).info("Videomap with %d trackpoints written to %s", len(track), target)
     
 if __name__ == "__main__":
 

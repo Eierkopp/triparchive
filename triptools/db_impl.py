@@ -46,15 +46,19 @@ class DB:
         with self.getconn() as conn:
             with conn.cursor() as c:
                 # trackpoints
-                c.execute("CREATE TABLE IF NOT EXISTS trackpoints (timepoint int8 primary key, location geography(Point,4326), altitude float)")
+                c.execute("CREATE TABLE IF NOT EXISTS trackpoints (timepoint int8 PRIMARY KEY, location geography(Point,4326), altitude float)")
                 
                 # videos
-                c.execute("create table if not exists videos (id SERIAL primary key, filename text, starttime int8, duration float )")
-                c.execute("create unique index if not exists filename_ux on videos (filename)")
+                c.execute("CREATE TABLE IF NOT EXISTS videos (id SERIAL PRIMARY KEY, filename text, starttime int8, duration float )")
+                c.execute("CREATE UNIQUE INDEX IF NOT EXISTS filename_ux ON videos (filename)")
                 
                 #videopoints
-                c.execute("CREATE TABLE IF NOT EXISTS videopoints (video_id int references videos(id), timepoint int8, altitude float, location geography(Point,4326), primary key (video_id, timepoint))")
+                c.execute("CREATE TABLE IF NOT EXISTS videopoints (video_id int references videos(id), timepoint int8, altitude float, location geography(Point,4326), PRIMARY KEY (video_id, timepoint))")
                 c.execute("CREATE INDEX IF NOT EXISTS videopoints_location_idx ON videopoints USING GIST (location)")
+                # photos
+                c.execute("CREATE TABLE IF NOT EXISTS photos (filename text PRIMARY KEY, location geography(Point,4326), altitude float, timepoint int8)")
+                c.execute("CREATE INDEX IF NOT EXISTS photos_location_idx ON photos USING GIST (location)")
+                
                 # geonetnames
                 c.execute("CREATE TABLE IF NOT EXISTS geonetnames (name text, location geography(Point,4326), feature text, country text)")
                 c.execute("CREATE INDEX IF NOT EXISTS geonetnames_location_idx ON geonetnames USING GIST (location)")
@@ -94,8 +98,6 @@ class DB:
                           (start_ts, end_ts))
                 result = []
                 for row in c:
-                    print(c.description)
-                    print(row)
                     result.append(DB.from_trackpoint(row))
                 return result
 
@@ -146,10 +148,15 @@ class DB:
         return result
 
     def get_video(self, filename):
-        videos = self.videos()
         try:
-            with videos.find({ "filename" : filename}) as cursor:
-                return next(cursor)
+            with self.getconn() as conn:
+                with conn.cursor() as c:
+                    c.execute("select id, filename, starttime, duration from videos where filename = %s", (filename,))
+                    row = next(c)
+                    return { "id" : row[0],
+                             "filename" : row[1],
+                             "starttime" : row[2],
+                             "duration" : row[3] }
         except StopIteration:
             return None                  
 
@@ -207,6 +214,38 @@ class DB:
                 c.execute("select timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, video_id from videopoints where video_id in ('" + "','".join(map(str, video_ids)) + "') order by video_id, timepoint")
                 track += [ DB.from_videopoint(row) for row in c]
         return track
+    
+    #
+    # photo support
+    #
+
+    @staticmethod
+    def from_photo(row):
+        return Trackpoint(row[0],
+                          row[1],
+                          row[2],
+                          row[3],
+                          filename = row[4])
+
+    def add_photo(self, tp):
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("INSERT INTO photos (filename, location, altitude, timepoint) VALUES (%(filename)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s, %(ts)s) ON CONFLICT (filename) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s, timepoint=%(ts)s",
+                { "filename" : tp.filename,
+                  "lon" : tp.longitude,
+                  "lat" : tp.latitude,
+                  "alt" : tp.altitude,
+                  "ts" : tp.timestamp})
+                return c.rowcount
+
+    def get_photo(self, filename):
+        try:
+            with self.getconn() as conn:
+                with conn.cursor() as c:
+                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename FROM photos WHERE filename = %s", (filename,))
+                    return DB.from_photo(next(c))
+        except StopIteration:
+            return None
 
     #
     # geonetnames support

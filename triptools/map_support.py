@@ -82,7 +82,7 @@ class MapTool:
         for t in trackPoints:
 
             x2, y2 = map_tile.rev_geocode( (t.longitude, t.latitude) )
-            if tp_dist(tp, t) < 100:
+            if tp_dist(tp, t) < 1000:
                 cr.line_to(x2, y2)
             else:
                 cr.move_to(x2, y2)

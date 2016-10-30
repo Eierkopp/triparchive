@@ -56,13 +56,14 @@ def import_gns(country, url):
     lines = data.splitlines()
     indexes = fetch_indexes(FEATURES, lines[0])
 
-    with DB() as db:
-        db.remove_gns(country)
-        count = 0
-        gns = db.geonetnames()
+    db = DB()
+    
+    db.remove_gns(country)
+    count = 0
+    with db.getconn() as conn:
         for line in lines[1:]:
             line = line.split("\t")
-            count += db.add_gns(gns, country, float(line[indexes[0]]), float(line[indexes[1]]), line[indexes[2]], line[indexes[3]])
+            count += db.add_gns(conn, country, float(line[indexes[0]]), float(line[indexes[1]]), line[indexes[2]], line[indexes[3]])
 
     logging.getLogger(__name__).info("geonetnames for '%s' imported, %d entries added to DB" % (country, count))
     

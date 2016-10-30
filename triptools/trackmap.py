@@ -32,7 +32,10 @@ def make_trackmap(start_time, end_time):
                                                       config.getint("Map", "height")))
         surface = osm_mapper.as_surface(image)
         osm_mapper.draw_trackpoints(map_tile, surface, track)
-        surface.write_to_png(config.get("Map", "target"))
+        target = config.get("Map", "target")
+        surface.write_to_png(target)
+
+        logging.getLogger(__name__).info("Trackmap with %d trackpoints written to %s", len(track), target)
     
 if __name__ == "__main__":
 
