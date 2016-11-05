@@ -8,7 +8,7 @@ import os
 import re
 import sys
 
-from flask import Flask, request, Response, redirect, render_template, make_response, send_file
+from flask import Flask, request, Response, render_template, make_response, send_file
 from werkzeug.routing import FloatConverter as BaseFloatConverter
 from gevent.wsgi import WSGIServer
 

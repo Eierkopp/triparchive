@@ -225,7 +225,8 @@ class DB:
                           row[1],
                           row[2],
                           row[3],
-                          filename = row[4])
+                          filename=row[4],
+                          id=row[5])
 
     def add_photo(self, tp):
         with self.getconn() as conn:
@@ -238,14 +239,37 @@ class DB:
                   "ts" : tp.timestamp})
                 return c.rowcount
 
-    def get_photo(self, filename):
+    def get_photo(self, key):
+        if isinstance(key, int):
+            where = "WHERE id = %s"
+        else:
+            where = "WHERE filename = %s"
         try:
             with self.getconn() as conn:
                 with conn.cursor() as c:
-                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename FROM photos WHERE filename = %s", (filename,))
+                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos " + where, (key,))
                     return DB.from_photo(next(c))
         except StopIteration:
             return None
+
+    def get_photos_bb(self, center_x, center_y, min_x, min_y, max_x, max_y, limit = 10):
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos "
+                          "WHERE location && ST_MakeEnvelope(%s, %s, %s, %s, 4326) "
+                          "ORDER BY location <-> ST_SetSRID(ST_Point(%s, %s), 4326) "
+                          "LIMIT %s",
+                          (min_x, min_y, max_x, max_y, center_x, center_y, limit))
+                return [DB.from_photo(row) for row in c]
+
+    def get_photos_at(self, center_x, center_y, limit = 10):
+        with self.getconn() as conn:
+            with conn.cursor() as c:
+                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos "
+                          "ORDER BY location <-> ST_SetSRID(ST_Point(%s, %s), 4326) "
+                          "LIMIT %s",
+                          (center_x, center_y, limit))
+                return [DB.from_photo(row) for row in c]
 
     #
     # geonetnames support

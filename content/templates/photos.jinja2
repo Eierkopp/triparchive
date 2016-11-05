@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Viewer</title>
+    <script src="/static/jquery-3.1.1.min.js"></script>
+    <script type="text/javascript">
+      'use strict';
+      var $SCRIPT_ROOT = {{ request.script_root|tojson }};
+    </script>
+  </head>
+  <body>
+    <script type="text/javascript">
+      'use strict';
+      $(function() {
+        $('img#map').bind('click', function(x) {
+      $.ajax({url: "/update{{ part }}",
+      data : {"x" : x.offsetX,
+      "y" : x.offsetY},
+      success: function(result) { 
+      $("#coords").html(result);
+        }
+      });
+      });
+      });
+    </script>
+    <table>
+      <tr>
+	<td></td>
+	<td align="center"><a href="{{up}}">up</a></td>
+	<td></td>
+      </tr>
+      <tr>
+	<td><a href="{{left}}">left</a></td>
+	<td>
+	  <!-- <input type="image" id="map" name="img" src="{{ part }}/map.png" alt="map image"/> -->
+	  <img id="map" src="{{ part }}/map.png" alt="map image"/>
+	</td>
+	<td><a href="{{right}}">right</a></td>
+      </tr>
+      <tr>
+	<td align="center"><a href="{{zoom_out}}">-</a></td>
+	<td align="center"><a href="{{down}}">down</a></td>
+	<td align="center"><a href="{{zoom_in}}">+</a></td>
+      </tr>
+    </table>
+    {% include 'photo_list.jinja2' %}
+  </body>
+</html>
+

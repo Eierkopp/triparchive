@@ -1,0 +1,10 @@
+<div id="coords">
+  <table>
+    {% for num, photo in enumerate(photos) %}
+    <tr>
+      <td>{{ photo.ts_str }}</td>
+      <td><a href="/view/{{ photo.id }}" target="_blank">{{ photo.name }}</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>

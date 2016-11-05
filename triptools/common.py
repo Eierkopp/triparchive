@@ -15,12 +15,16 @@ class Trackpoint:
         self.longitude = lon
         self.latitude = lat
         self.altitude = alt
-        self.additional_info = additional_info
+        self.additional_info = dict()
         for key, value in additional_info.items():
-            setattr(self, key, value)
+            self.add(key, value)
+
+    def add(self, key, value):
+        setattr(self, key, value)
+        self.additional_info[key] = value
 
     def __str__(self):
-        additionals = "".join([" " + key + ":" + value for key, value in self.additional_info.items()])
+        additionals = "".join([" " + key + ":" + str(value) for key, value in self.additional_info.items()])
         return "(%d: lon:%f lat:%f alt:%f%s)" % (self.timestamp, self.longitude, self.latitude, self.altitude, additionals)
 
     def __repr__(self):
