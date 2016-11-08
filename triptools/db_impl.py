@@ -56,8 +56,9 @@ class DB:
                 c.execute("CREATE TABLE IF NOT EXISTS videopoints (video_id int references videos(id), timepoint int8, altitude float, location geography(Point,4326), PRIMARY KEY (video_id, timepoint))")
                 c.execute("CREATE INDEX IF NOT EXISTS videopoints_location_idx ON videopoints USING GIST (location)")
                 # photos
-                c.execute("CREATE TABLE IF NOT EXISTS photos (filename text PRIMARY KEY, location geography(Point,4326), altitude float, timepoint int8)")
+                c.execute("CREATE TABLE IF NOT EXISTS photos (filename text PRIMARY KEY, location geography(Point,4326), altitude float, timepoint int8, thumbnail bytea)")
                 c.execute("CREATE INDEX IF NOT EXISTS photos_location_idx ON photos USING GIST (location)")
+                c.execute("CREATE UNIQUE INDEX IF NOT EXISTS photos_id_ux ON photos (id)")
                 
                 # geonetnames
                 c.execute("CREATE TABLE IF NOT EXISTS geonetnames (name text, location geography(Point,4326), feature text, country text)")
@@ -226,17 +227,19 @@ class DB:
                           row[2],
                           row[3],
                           filename=row[4],
-                          id=row[5])
+                          thumbnail=bytes(row[5]) if row[5] else None,
+                          id=row[6])
 
     def add_photo(self, tp):
         with self.getconn() as conn:
             with conn.cursor() as c:
-                c.execute("INSERT INTO photos (filename, location, altitude, timepoint) VALUES (%(filename)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s, %(ts)s) ON CONFLICT (filename) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s, timepoint=%(ts)s",
+                c.execute("INSERT INTO photos (filename, location, altitude, timepoint, thumbnail) VALUES (%(filename)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s, %(ts)s, %(thumbnail)s) ON CONFLICT (filename) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s, timepoint=%(ts)s, thumbnail=%(thumbnail)s",
                 { "filename" : tp.filename,
                   "lon" : tp.longitude,
                   "lat" : tp.latitude,
                   "alt" : tp.altitude,
-                  "ts" : tp.timestamp})
+                  "ts" : tp.timestamp,
+                  "thumbnail" : tp.thumbnail})
                 return c.rowcount
 
     def get_photo(self, key):
@@ -247,25 +250,25 @@ class DB:
         try:
             with self.getconn() as conn:
                 with conn.cursor() as c:
-                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos " + where, (key,))
+                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, thumbnail, id FROM photos " + where, (key,))
                     return DB.from_photo(next(c))
         except StopIteration:
             return None
 
-    def get_photos_bb(self, center_x, center_y, min_x, min_y, max_x, max_y, limit = 10):
+    def get_photos_bb(self, sort_x, sort_y, min_x, min_y, max_x, max_y, limit = 10):
         with self.getconn() as conn:
             with conn.cursor() as c:
-                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos "
+                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, thumbnail, id FROM photos "
                           "WHERE location && ST_MakeEnvelope(%s, %s, %s, %s, 4326) "
                           "ORDER BY location <-> ST_SetSRID(ST_Point(%s, %s), 4326) "
                           "LIMIT %s",
-                          (min_x, min_y, max_x, max_y, center_x, center_y, limit))
+                          (min_x, min_y, max_x, max_y, sort_x, sort_y, limit))
                 return [DB.from_photo(row) for row in c]
 
     def get_photos_at(self, center_x, center_y, limit = 10):
         with self.getconn() as conn:
             with conn.cursor() as c:
-                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, id FROM photos "
+                c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, thumbnail, id FROM photos "
                           "ORDER BY location <-> ST_SetSRID(ST_Point(%s, %s), 4326) "
                           "LIMIT %s",
                           (center_x, center_y, limit))
