@@ -50,6 +50,9 @@ def round_xy(lon, lat):
 def part(lon, lat, zoom):
     return "/%3.4f/%3.4f/%d" % (*round_xy(lon, lat), zoom)
 
+def map_center(map_tile):
+    return round_xy(*map_tile.geocode((int(SIZE[0]/2), int(SIZE[1]/2))))
+
 @lru_cache(maxsize=1024)
 def add_info(photo):
     photoconf = config["Photo"]
@@ -57,8 +60,9 @@ def add_info(photo):
     photo.add("ts_str", format_datetime(photo.timestamp, photoconf["comment_timestamp_format"], photoconf["img_timezone"]))
 
 @lru_cache(maxsize=1024)
-def get_photos(lon, lat):
-    photos = db.get_photos_at(lon, lat, limit=15)
+def get_photos(lon, lat, map_tile):
+    lon1, lat1, lon2, lat2 = map_tile.extent
+    photos = db.get_photos_bb(lon, lat, lon1, lat1, lon2, lat2, limit=100)
     for photo in photos:
         add_info(photo)
     return photos
@@ -67,7 +71,7 @@ def get_photos(lon, lat):
 def get_rendered_png(lon, lat, zoom):
     map_tile, image = osm_mapper.get_centered_map(lon, lat, zoom, SIZE)
     surface = osm_mapper.as_surface(image)
-    photos = get_photos(lon, lat)
+    photos = get_photos(*map_center(map_tile), map_tile)
     cr = cairo.Context(surface)
     cr.set_line_width(5)
     for p in photos:
@@ -83,9 +87,8 @@ def get_rendered_png(lon, lat, zoom):
 def root(lon, lat, zoom):
     map_tile, _ = get_rendered_png(lon, lat, zoom)
     lon1, lat1, lon2, lat2 = map_tile.extent
-    print(map_tile.extent)
-    lon, lat = round_xy(*map_tile.geocode((int(SIZE[0]/2), int(SIZE[1]/2))))
-    photos = get_photos(lon, lat)
+    lon, lat = map_center(map_tile)
+    photos = get_photos(lon, lat, map_tile)
     zoom = map_tile.zoom
     h_step = (lon2 - lon1) / 3.0
     v_step = (lat2 - lat1) / 3.0
@@ -120,15 +123,18 @@ def view(id):
 @app.route('/sendimg/<int:id>')
 def sendimg(id):
     photo = db.get_photo(id)
-    print(photo)
     return send_file(photo.filename)
+
+@app.route('/sendthumb/<int:id>')
+def sendthumb(id):
+    photo = db.get_photo(id)
+    return make_response(photo.thumbnail, 200, { "content-type" : "image/png" })
 
 @app.route('/update/<float:lon>/<float:lat>/<int:zoom>')
 def update(lon, lat, zoom):
     map_tile, data = get_rendered_png(lon, lat, zoom)
     lon, lat = map_tile.geocode((int(request.args["x"]), int(request.args["y"])))
-    print(lon,lat)
-    photos = get_photos(lon, lat)
+    photos = get_photos(lon, lat, map_tile)
     return render_template("photo_list.jinja2",
                            enumerate=enumerate,
                            photos=photos)
@@ -136,8 +142,7 @@ def update(lon, lat, zoom):
 @app.route("/<float:lon>/<float:lat>/<int:zoom>/map.png")
 def map(lon, lat, zoom):
     map_tile, data = get_rendered_png(lon, lat, zoom)
-    resp = make_response(data, 200, { "content-type" : "image/png" })
-    return resp
+    return make_response(data, 200, { "content-type" : "image/png" })
 
 if __name__ == "__main__":
 

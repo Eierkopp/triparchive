@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from functools import lru_cache
 import json
 import logging
 import psycopg2
@@ -242,6 +243,7 @@ class DB:
                   "thumbnail" : tp.thumbnail})
                 return c.rowcount
 
+    @lru_cache(maxsize=256)
     def get_photo(self, key):
         if isinstance(key, int):
             where = "WHERE id = %s"

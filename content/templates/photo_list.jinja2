@@ -2,8 +2,18 @@
   <table>
     {% for num, photo in enumerate(photos) %}
     <tr>
-      <td>{{ photo.ts_str }}</td>
-      <td><a href="/view/{{ photo.id }}" target="_blank">{{ photo.name }}</a></td>
+      <td>
+	{{ photo.ts_str }}
+      </td>
+      <td>
+      	<a href="/view/{{ photo.id }}" target="_blank">
+	  {% if photo.thumbnail %}
+	  <img src="/sendthumb/{{ photo.id}}"/>
+	  {% else %}
+	  {{ photo.name }}
+	  {% endif %}
+	</a>
+      </td>
     </tr>
     {% endfor %}
   </table>
