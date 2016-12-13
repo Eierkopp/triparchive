@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from functools import lru_cache
+import hashlib
 import json
 import logging
 import psycopg2
@@ -57,9 +58,10 @@ class DB:
                 c.execute("CREATE TABLE IF NOT EXISTS videopoints (video_id int references videos(id), timepoint int8, altitude float, location geography(Point,4326), PRIMARY KEY (video_id, timepoint))")
                 c.execute("CREATE INDEX IF NOT EXISTS videopoints_location_idx ON videopoints USING GIST (location)")
                 # photos
-                c.execute("CREATE TABLE IF NOT EXISTS photos (filename text PRIMARY KEY, location geography(Point,4326), altitude float, timepoint int8, thumbnail bytea)")
+                c.execute("CREATE TABLE IF NOT EXISTS photos (filename text PRIMARY KEY, location geography(Point,4326), altitude float, timepoint int8, id serial, thumbnail bytea, hash text)")
                 c.execute("CREATE INDEX IF NOT EXISTS photos_location_idx ON photos USING GIST (location)")
                 c.execute("CREATE UNIQUE INDEX IF NOT EXISTS photos_id_ux ON photos (id)")
+                c.execute("CREATE UNIQUE INDEX IF NOT EXISTS photos_hash_ux ON photos (hash)")
                 
                 # geonetnames
                 c.execute("CREATE TABLE IF NOT EXISTS geonetnames (name text, location geography(Point,4326), feature text, country text)")
@@ -234,13 +236,14 @@ class DB:
     def add_photo(self, tp):
         with self.getconn() as conn:
             with conn.cursor() as c:
-                c.execute("INSERT INTO photos (filename, location, altitude, timepoint, thumbnail) VALUES (%(filename)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s, %(ts)s, %(thumbnail)s) ON CONFLICT (filename) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s, timepoint=%(ts)s, thumbnail=%(thumbnail)s",
+                c.execute("INSERT INTO photos (filename, location, altitude, timepoint, thumbnail, hash) VALUES (%(filename)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s, %(ts)s, %(thumbnail)s, %(hash)s) ON CONFLICT (filename) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s, timepoint=%(ts)s, thumbnail=%(thumbnail)s, hash=%(hash)s",
                 { "filename" : tp.filename,
                   "lon" : tp.longitude,
                   "lat" : tp.latitude,
                   "alt" : tp.altitude,
                   "ts" : tp.timestamp,
-                  "thumbnail" : tp.thumbnail})
+                  "thumbnail" : tp.thumbnail,
+                  "hash" : hashlib.md5(tp.filename.encode("utf8")).hexdigest()})
                 return c.rowcount
 
     @lru_cache(maxsize=256)
@@ -253,6 +256,16 @@ class DB:
             with self.getconn() as conn:
                 with conn.cursor() as c:
                     c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, thumbnail, id FROM photos " + where, (key,))
+                    return DB.from_photo(next(c))
+        except StopIteration:
+            return None
+
+    @lru_cache(maxsize=256)
+    def get_photo_by_hash(self, key):
+        try:
+            with self.getconn() as conn:
+                with conn.cursor() as c:
+                    c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude, filename, thumbnail, id FROM photos WHERE hash = %s", (key,))
                     return DB.from_photo(next(c))
         except StopIteration:
             return None

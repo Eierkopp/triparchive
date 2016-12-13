@@ -120,6 +120,12 @@ def view(id):
                            size=SIZE,
                            name=photo.name)
 
+@app.route('/v/<key>')
+def v(key):
+    photo = db.get_photo_by_hash(key)
+    add_info(photo)
+    return send_file(photo.filename)
+
 @app.route('/sendimg/<int:id>')
 def sendimg(id):
     photo = db.get_photo(id)
