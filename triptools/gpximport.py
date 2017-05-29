@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import calendar
-import gpxpy
 import logging
 import os
 import sys
+import xml.etree.ElementTree as ET
+from dateutil.parser import parse as parse_ts
 
 from triptools import config
 from triptools import Trackpoint
@@ -18,12 +19,15 @@ def import_gpxtrack(db, filename):
     with db.getconn() as conn:
         with open(filename, "r", encoding="utf8") as gpx_file:
             count = 0
-            records = gpxpy.parse(gpx_file)
-            for tp in records.walk(True):
-                t = Trackpoint(calendar.timegm(tp.time.utctimetuple()),
-                               tp.longitude,
-                               tp.latitude,
-                               tp.elevation)
+            doc = ET.parse(gpx_file)
+            trkpoints = doc.findall(".//{http://www.topografix.com/GPX/1/1}trkpt")
+            for tp in trkpoints:
+                elevation = [float(ele) for ele in tp.find("{http://www.topografix.com/GPX/1/1}ele").itertext()][0]
+                timestamp = [parse_ts(ts) for ts in tp.find("{http://www.topografix.com/GPX/1/1}time").itertext()][0]
+                t = Trackpoint(calendar.timegm(timestamp.utctimetuple()),
+                               tp.get("lon"),
+                               tp.get("lat"),
+                               elevation)
                 count += db.add_trackpoint(conn, t)
             logging.getLogger(__name__).info("file '%s' imported, %d trackpoints added to DB" % (filename, count))
             
