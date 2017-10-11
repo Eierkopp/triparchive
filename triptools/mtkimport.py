@@ -21,7 +21,7 @@ def import_mtktrack():
     if not os.access(dev_name, os.R_OK | os.W_OK):
         raise Exception("MTK device '%s' not accessible" % dev_name)
 
-    args = [config.get("Tools", "gpsbabel_path")] + shlex.split("-i mtk -t -f %s -o gpx -F -" % dev_name)
+    args = [config.get("Tools", "gpsbabel_path")] + shlex.split("-t -i mtk -f %s -o gpx -F -" % dev_name)
     count = 0
     with subprocess.Popen(args, stdout=subprocess.PIPE) as gpsbabel:
         output, _ = gpsbabel.communicate()

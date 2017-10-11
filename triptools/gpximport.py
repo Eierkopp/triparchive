@@ -20,15 +20,16 @@ def import_gpxtrack(db, filename):
         with open(filename, "r", encoding="utf8") as gpx_file:
             count = 0
             doc = ET.parse(gpx_file)
-            trkpoints = doc.findall(".//{http://www.topografix.com/GPX/1/1}trkpt")
-            for tp in trkpoints:
-                elevation = [float(ele) for ele in tp.find("{http://www.topografix.com/GPX/1/1}ele").itertext()][0]
-                timestamp = [parse_ts(ts) for ts in tp.find("{http://www.topografix.com/GPX/1/1}time").itertext()][0]
-                t = Trackpoint(calendar.timegm(timestamp.utctimetuple()),
-                               tp.get("lon"),
-                               tp.get("lat"),
-                               elevation)
-                count += db.add_trackpoint(conn, t)
+            for ns in ["http://www.topografix.com/GPX/1/0", "http://www.topografix.com/GPX/1/1"]:
+                trkpoints = doc.findall(".//{" + ns + "}trkpt")
+                for tp in trkpoints:
+                    elevation = [float(ele) for ele in tp.find("{" + ns + "}ele").itertext()][0]
+                    timestamp = [parse_ts(ts) for ts in tp.find("{" + ns + "}time").itertext()][0]
+                    t = Trackpoint(calendar.timegm(timestamp.utctimetuple()),
+                                   tp.get("lon"),
+                                   tp.get("lat"),
+                                   elevation)
+                    count += db.add_trackpoint(conn, t)
             logging.getLogger(__name__).info("file '%s' imported, %d trackpoints added to DB" % (filename, count))
             
 if __name__ == "__main__":
