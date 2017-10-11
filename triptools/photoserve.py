@@ -42,6 +42,14 @@ videos = None
 
 app = setup_app()
 
+#@app.after_request
+def add_header(r):
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    r.headers['Cache-Control'] = 'public, max-age=0'
+    return r
+
 def round_xy(lon, lat):
     def round_float(x):
         return int(x * 10000) / 10000
