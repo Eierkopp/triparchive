@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import logging
@@ -208,8 +208,8 @@ if __name__ == "__main__":
                 video_info = db.get_video(filename)
                 if video_info is None:
                     raise Exception("Video needs to be imported first")
-                video_id = str(video_info["_id"])
-                start_time = video_info["start_time"]
+                video_id = str(video_info["id"])
+                start_time = video_info["starttime"]
                 duration = video_info["duration"]
 
                 if config.getboolean("Video", "use_camera_track"):

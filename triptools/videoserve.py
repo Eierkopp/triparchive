@@ -128,7 +128,7 @@ def check_map(filename):
             map_name = base + config.get(section, "name_suffix")
             if os.access(map_name, os.R_OK):
                 return map_name
-    logging.getLogger(__name__).info("Sending video %s" % filename)
+    logging.getLogger(__name__).warning("Sending video %s" % filename)
     return filename
 
 @app.route("/sendvid/<int:id>/<int:offset>/<path:path>", methods=["GET"])

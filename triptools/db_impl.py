@@ -140,15 +140,15 @@ class DB:
         result = None
         with self.getconn() as conn:
             with conn.cursor() as c:
-                c.execute("select id from videos where filename = %s", (filename,))
-                rows = c.fetchall()
-                if rows:
-                    result = rows[0][0]
-                elif starttime and duration:
-                    c.execute("insert into videos (filename, starttime, duration) values (%s, %s, %s) returning id", (filename, starttime, duration))
+                if starttime and duration:
+                    c.execute("insert into videos (filename, starttime, duration) values (%s, %s, %s) on conflict (filename) do update set starttime = %s, duration = %s returning id", (filename, starttime, duration, starttime, duration))
                     rows = c.fetchall()
-                    if rows:
-                        result = rows[0][0]
+                    result = rows[0][0]
+                else:
+                    c.execute("select id from videos where filename = %s", (filename,))
+                    rows = c.fetchall()
+                    result = rows[0][0]
+                    
         return result
 
     def get_video(self, filename):
