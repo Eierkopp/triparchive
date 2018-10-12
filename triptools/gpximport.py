@@ -23,8 +23,14 @@ def import_gpxtrack(db, filename):
             for ns in ["http://www.topografix.com/GPX/1/0", "http://www.topografix.com/GPX/1/1"]:
                 trkpoints = doc.findall(".//{" + ns + "}trkpt")
                 for tp in trkpoints:
-                    elevation = [float(ele) for ele in tp.find("{" + ns + "}ele").itertext()][0]
-                    timestamp = [parse_ts(ts) for ts in tp.find("{" + ns + "}time").itertext()][0]
+                    ele_text = tp.find("{" + ns + "}ele")
+                    if ele_text is None:
+                        continue
+                    elevation = [float(ele) for ele in ele_text.itertext()][0]
+                    ts_text = tp.find("{" + ns + "}time")
+                    if ts_text is None:
+                        continue
+                    timestamp = [parse_ts(ts) for ts in ts_text.itertext()][0]
                     t = Trackpoint(calendar.timegm(timestamp.utctimetuple()),
                                    tp.get("lon"),
                                    tp.get("lat"),
@@ -42,6 +48,6 @@ if __name__ == "__main__":
                 raise Exception("cannot read gpx file '%s'" % filename)
             import_gpxtrack(db, filename)
         except Exception as e:
-            logging.getLogger(__name__).error(e)
+            logging.getLogger(__name__).error("Error in %s: %s", filename, e, exc_info=True)
 
         
