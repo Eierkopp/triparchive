@@ -1,9 +1,12 @@
 from configparser import SafeConfigParser, ExtendedInterpolation
+from functools import lru_cache
 import argparse
 import logging
 import os
 import sys
 import warnings
+import traceback
+import types
 
 MOVIE_PROFILE_PREFIX = "Movie_Profile_"
 
@@ -44,8 +47,33 @@ args.basedir = os.path.abspath(args.basedir)
 
 conf_file = os.getenv('TRIPARCHIVE_CONF', args.config)
 
+class log_after:
+
+    def __init__(self):
+        self.known = set()
+    
+    def __call__(self, result, section, param, *args, **kwargs):
+        if (section, param) in self.known:
+            return
+        self.known.add((section, param))
+        print("%s_%s=%s" % (section.lower(), param.lower(), result))
+        
+
+def wrap_method(instance, orig_method, before_call=None, after_call=None):
+
+    def wrapped(self, *args, **kwargs):
+        if before_call: before_call(*args, **kwargs)
+        result = orig_method(*args, **kwargs)
+        if after_call: after_call(result, *args, **kwargs)
+        return result
+    
+    return types.MethodType(wrapped, instance)
+
+
+
 config = SafeConfigParser(interpolation=ExtendedInterpolation(),
                           defaults={"basedir" : args.basedir})
+
 config.read(conf_file)
 
 parser = argparse.ArgumentParser(prog='triparchive',
@@ -87,3 +115,4 @@ for section in config.sections():
             and hasattr(args, argname(section, option))):
             config.set(section, option, getattr(args, argname(section, option)))
 
+config.get = wrap_method(config, config.get, after_call=log_after())

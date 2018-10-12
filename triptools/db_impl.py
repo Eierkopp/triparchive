@@ -312,7 +312,7 @@ class DB:
                       (lon, lat, name, country, feature))
             return c.rowcount
 
-    def get_nearest_feature(self, tp, features=["P"]):
+    def get_nearest_feature(self, tp, features=["P", "T"]):
         with self.getconn() as conn:
             feature_expr = "('" + "','".join(features) + "')"
             with conn.cursor() as c:
