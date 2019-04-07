@@ -7,51 +7,49 @@ import os
 import shlex
 import subprocess
 import sys
-from urllib.request import urlopen
+
+import overpy
 from triptools import config
 
 logging.basicConfig(level=logging.INFO)
 
 sp_conf = config["Speedcams"]
 
-def download(url):
-    response = urlopen(url)
-    data = response.read()
-#    with open("/tmp/data.out", "rb") as inf:
-#        data = inf.read()
-#    with open("/tmp/data.out", "wb") as outf:
-#        outf.write(data)
-    return gzip.decompress(data).decode("utf8")
-
+def download():
+    api = overpy.Overpass()
+    r = api.query("""
+<osm-script timeout="900" element-limit="1073741824">
+  <query type="relation">
+    <has-kv k="type" v="enforcement"/>
+  </query>
+  <recurse type="relation-node"/>
+  <print/>
+</osm-script>""")
+    return r
+    
 def get_proximity(speed):
     return int(speed * 30 / 3.6) # 30 seconds
 
-def parse_lines(fName):
-    for line in data.splitlines():
-        line = line.strip()
-        if line.startswith("#") or line.startswith("lat\tlon"):
+def get_details(data):
+    FILTER_TAG='highway'
+    for n in data.get_nodes():
+        if FILTER_TAG not in n.tags:
             continue
-
-        parts = line.split("\t")
-        result = [None]*5
-        result[4] = 300
-
-        result[0] = float(parts[1]) # lon
-        result[1] = float(parts[0]) # lat
-        if parts[2] in ["maxspeed", "speed_camera"]:
-            if parts[3]:
-                try:
-                    if parts[3].endswith("mph"):
-                        speed = float(parts[3].split()[0])
-                        result[4] = get_proximity(speed)
-                        result[3] = "%dkmh" % int(1.609 * speed)
-                    else:
-                        result[3] = "%dkmh" % int(parts[3])
-                except:
-                    result[3] = "5kmh" # variable or unknown speed
-                    
-        result[2] = parts[2]
-        yield result
+        lat, lon = float(n.lat), float(n.lon)
+        ft = n.tags[FILTER_TAG]
+        try:
+            speed_txt = n.tags["maxspeed"].split()
+            speed = float(speed_txt[0])
+            if len(speed_txt) > 1 and speed_txt[1] == "mph":
+                speed *= 1.609
+            proximity = get_proximity(speed)
+            speed = "%dkm/h" % int(speed)
+        except:
+            # unknown or variable speed
+            speed = "5km/h"
+            proximity = get_proximity(50)
+            
+        yield lon, lat, ft, speed, proximity
             
 def export(data):
     poi_file = sp_conf["poi_file"]
@@ -63,7 +61,7 @@ def export(data):
     with subprocess.Popen(args, stdin=subprocess.PIPE) as gpsbabel:
         gpsbabel.stdin.write(b"No,Latitude,Longitude,Name,Symbol,Proximity\n")
         count=1
-        for lon, lat, ft, max_speed, proximity in parse_lines(data):
+        for lon, lat, ft, max_speed, proximity in get_details(data):
             ft_key = ("translation_" + ft).replace(" ", "")
             if ft_key not in sp_conf and ft_key not in missing_translation:
                 logging.getLogger(__name__).warn("no translation for %s" % ft_key)
@@ -84,7 +82,7 @@ if __name__ == "__main__":
         if not os.access(config.get("Tools", "gpsbabel_path"), os.X_OK):
             raise Exception("gpsbabel missing or gpsbabel_path misconfigured")
     
-        data = download(sp_conf["osm_url"])
+        data = download()
         export(data)
 
     except Exception as e:
