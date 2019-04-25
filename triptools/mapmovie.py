@@ -3,7 +3,6 @@
 
 import logging
 import os
-import sys
 import cairocffi as cairo
 from imageio.plugins import ffmpeg
 from moviepy.editor import CompositeVideoClip, VideoFileClip
@@ -11,14 +10,14 @@ import math
 import shutil
 import shlex
 import subprocess
+import sys
 import tempfile
-import time
 from tqdm import tqdm
 
 from triptools import config
 from triptools import DB
 from triptools import osm_mapper
-from triptools.common import Track, Trackpoint, get_names
+from triptools.common import Track, Trackpoint, get_names, format_datetime, format_duration
 from triptools.configuration import MOVIE_PROFILE_PREFIX
 
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +48,7 @@ def cairoArrow(tipX, tailX, tipY, tailY, ctx):
 
     ctx.fill()
 
+    
 def makeMaps(filename, track, start_time, duration):
 
     MAP_FORMAT = "map%05d.png"
@@ -143,11 +143,36 @@ def renderOverlay(filename, maps_movie, target_name, profile):
     
     logging.getLogger(__name__).info("Movie rendered into %s" % target_name)
 
-def make_target(name):
-    profile = config["Movie_Profile_" + config.get("Video", "movie_profile")]
-    target_name = os.path.splitext(name)[0] + profile["name_suffix"]
+def location_name(db, track, timestamp):
+    feature = db.get_nearest_feature(track.get(timestamp), features=["S", "P"])
+    return feature.name
+
+def make_target(db, filename, video_id, start_time, duration, track):
+    profile = config.get("Video", "movie_profile")
+    profile_section = config["Movie_Profile_" + profile]
+    ext = profile_section.get("ext")
+    timestamp = format_datetime(start_time,
+                                config.get("Video", "video_timestamp_format"),
+                                config.get("Video", "video_timestamp_tz"))
+
+    start_location = location_name(db, track, start_time)
+    mid_location = location_name(db, track, start_time + duration / 2)
+    end_location = location_name(db, track, start_time + duration)
+    duration = format_duration(duration)
+    target_name = config.get("Video", "target") % {
+        "timestamp": timestamp,
+        "duration": duration,
+        "location": mid_location,
+        "start_location": start_location,
+        "mid_location": mid_location,
+        "end_location": end_location,
+        "profile": profile,
+        "ext": ext}
+    
     if os.access(target_name, os.R_OK):
         raise Exception("Target '%s' already exists, skipping" % target_name)
+    else:
+        logging.getLogger(__name__).info("Target name: %s", target_name)
     return target_name
 
 def build_profile():
@@ -201,7 +226,6 @@ if __name__ == "__main__":
         try:
             logging.getLogger(__name__).info("Processing video %s" % filename)
         
-            target_name = make_target(filename)
             profile = build_profile()
 
             with DB() as db:
@@ -218,6 +242,8 @@ if __name__ == "__main__":
                     track_points = db.fetch_trackpoints(start_time, start_time + duration)
                 track = Track(track_points)
 
+                target_name = make_target(db, filename, video_id, start_time, duration, track)
+                
                 maps_movie = makeMaps(filename, track, start_time, duration)
 
                 renderOverlay(filename, maps_movie, target_name, profile)

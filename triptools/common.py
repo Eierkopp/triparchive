@@ -6,7 +6,7 @@ import os
 import pytz
 import re
 from scipy.interpolate import splev, splrep
-import time
+
 
 class Trackpoint:
 
@@ -82,15 +82,15 @@ class Track:
 
 class Feature:
 
-    FeatureMapper = { 'A' : 'Administrative region',
-                      'P' : 'Populated place',
-                      'V' : 'Vegetation',
-                      'L' : 'Locality or area',
-                      'U' : 'Undersea',
-                      'R' : 'Streets',
-                      'T' : 'Hypsographic',
-                      'H' : 'Hydrographic',
-                      'S' : 'Spot'
+    FeatureMapper = {'A': 'Administrative region',
+                     'P': 'Populated place',
+                     'V': 'Vegetation',
+                     'L': 'Locality or area',
+                     'U': 'Undersea',
+                     'R': 'Streets',
+                     'T': 'Hypsographic',
+                     'H': 'Hydrographic',
+                     'S': 'Spot'
     }
 
     def __init__(self, name, longitude, latitude, feature_type):
@@ -113,11 +113,11 @@ def distance(lon1, lat1, lon2, lat2):
     """Approx distance in meter"""
     rlat1 = math.pi * lat1 / 180
     rlon1 = math.pi * lon1 / 180
-    rlat2 =  math.pi * lat2 / 180
+    rlat2 = math.pi * lat2 / 180
     rlon2 = math.pi * lon2 / 180
     dlon = rlon2 - rlon1
     dlat = rlat2 - rlat1
-    a =  math.pow(math.sin(dlat/2),2) + math.cos(rlat1)*math.cos(rlat2)*math.pow(math.sin(dlon/2),2)
+    a = math.pow(math.sin(dlat/2),2) + math.cos(rlat1)*math.cos(rlat2)*math.pow(math.sin(dlon/2),2)
     c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
     return EARTH_RADIUS*c
 
@@ -133,10 +133,21 @@ def parse_datetime(timestamp, format, timezone):
     dt = tz.localize(datetime.strptime(timestamp, format))
     return calendar.timegm(dt.utctimetuple())
 
+
 def format_datetime(timestamp, format, timezone):
     tz = pytz.timezone(timezone)
     timestamp = datetime.fromtimestamp(timestamp, tz=tz)
     return timestamp.strftime(format)
+
+
+def format_duration(duration):
+    hours = int(duration / 3600)
+    minutes = int((duration - 3600*hours) / 60)
+    seconds = int(duration) % 60
+    if hours > 0:
+        return "%02d-%02d-%02d" % (hours, minutes, seconds)
+    else:
+        return "%02d-%02d" % (minutes, seconds)
 
 def get_names(name, mask):
     name = os.path.abspath(name)
