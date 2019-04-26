@@ -90,8 +90,7 @@ class Feature:
                      'R': 'Streets',
                      'T': 'Hypsographic',
                      'H': 'Hydrographic',
-                     'S': 'Spot'
-    }
+                     'S': 'Spot'}
 
     def __init__(self, name, longitude, latitude, feature_type):
         self.longitude = longitude
@@ -100,14 +99,18 @@ class Feature:
         self.feature_type = feature_type
 
     def __str__(self):
-        return "(%s: lon:%f lat:%f type:%s)" % (self.name, self.longitude, self.latitude, self.feature_type)
+        return "(%s: lon:%f lat:%f type:%s)" % (self.name,
+                                                self.longitude,
+                                                self.latitude,
+                                                self.feature_type)
 
     def __repr__(self):
         return self.__str__()
 
 
 # approx earth radius in m
-EARTH_RADIUS=6371000.0
+EARTH_RADIUS = 6371000.0
+
 
 def distance(lon1, lat1, lon2, lat2):
     """Approx distance in meter"""
