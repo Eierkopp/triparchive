@@ -88,17 +88,27 @@ class DB:
     def add_trackpoint(self, conn, tp):
         with conn.cursor() as c:
             c.execute("INSERT INTO trackpoints (timepoint, location, altitude) VALUES (%(ts)s, ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), %(alt)s) ON CONFLICT (timepoint) DO UPDATE SET location = ST_SetSRID(ST_Point(%(lon)s, %(lat)s),4326), altitude=%(alt)s",
-                      { "ts" : tp.timestamp,
-                        "lon" : tp.longitude,
-                        "lat" : tp.latitude,
-                        "alt" : tp.altitude})
+                      {"ts": tp.timestamp,
+                       "lon": tp.longitude,
+                       "lat": tp.latitude,
+                       "alt": tp.altitude})
             return c.rowcount
+
+
+    def fetch_trackpoints(self, start_ts, end_ts, clon=None, clat=None, radius=None):
+        if radius is None:
+            LOC_QUERY = ""
+        else:
+            LOC_QUERY = "AND location <-> ST_SetSRID(ST_Point(%(lon)f, %(lat)f),4326) < %(rad)f " % {"lon": clon,
+                                                                                                     "lat": clat,
+                                                                                                     "rad": 1000.0 * radius}
             
-    def fetch_trackpoints(self, start_ts, end_ts):
         with self.getconn() as conn:
             with conn.cursor() as c:
                 c.execute("SELECT timepoint, ST_X(location::geometry), ST_Y(location::geometry), altitude FROM trackpoints "
-                          "WHERE timepoint >= %s AND timepoint <= %s ORDER BY timepoint ASC",
+                          "WHERE timepoint >= %s AND timepoint <= %s "
+                          + LOC_QUERY +
+                          "ORDER BY timepoint ASC",
                           (start_ts, end_ts))
                 result = []
                 for row in c:
@@ -319,6 +329,14 @@ class DB:
                 c.execute("select name, ST_X(location::geometry), ST_Y(location::geometry), feature from geonetnames where feature in " + feature_expr + " order by location <-> ST_SetSRID(ST_Point(%s, %s), 4326) limit 1",
                           (tp.longitude, tp.latitude))
                 return DB.from_feature(next(c))
+
+    def get_feature_position(self, name, features=["P", "T"]):
+        with self.getconn() as conn:
+            feature_expr = "('" + "','".join(features) + "')"
+            with conn.cursor() as c:
+                c.execute("select name, ST_X(location::geometry), ST_Y(location::geometry), feature from geonetnames where name = %s and feature in " + feature_expr, [name])
+                for row in c:
+                    yield DB.from_feature(row)
         
 if __name__ == "__main__":
 

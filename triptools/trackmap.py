@@ -57,37 +57,71 @@ def write_track(track, track_name):
 
         outf.write("</gpx>\n")
 
-def make_trackmap(start_time, end_time, track_name):
-    with DB() as db:
-        track = db.fetch_trackpoints(start_time, end_time)
-        if len(track)< 2:
-            raise Exception("track too short")
+def make_trackmap(db, num, start_time, end_time, center, radius, track_name):
+    clon, clat = center
+    pic_target = config.get("Map", "target")
+    if num > 0:
+        name, ext = os.path.splitext(track_name)
+        track_name = name + "_" + str(num) + ext
+        name, ext = os.path.splitext(pic_target)
+        pic_target = name + "_" + str(num) + ext
+    
+    track = db.fetch_trackpoints(start_time, end_time, clon, clat, radius)
+    if len(track)< 2:
+        logging.getLogger(__name__).warning("Track too short, ignoring")
+        return
+    
+    write_track(track, track_name)
 
-        write_track(track, track_name)
+    bb = osm_mapper.get_bounding_box(track,
+                                     config.getfloat("Map", "marg_pct"),
+                                     config.getfloat("Map", "marg_km"))
 
-        bb = osm_mapper.get_bounding_box(track,
-                                         config.getfloat("Map", "marg_pct"),
-                                         config.getfloat("Map", "marg_km"))
+    map_tile, image = osm_mapper.get_map_from_bb(bb,
+                                                 (config.getint("Map", "width"),
+                                                  config.getint("Map", "height")))
+    surface = osm_mapper.as_surface(image)
+    osm_mapper.draw_trackpoints(map_tile, surface, track)
+    
+    
+    surface.write_to_png(pic_target)
 
-        map_tile, image = osm_mapper.get_map_from_bb(bb,
-                                                     (config.getint("Map", "width"),
-                                                      config.getint("Map", "height")))
-        surface = osm_mapper.as_surface(image)
-        osm_mapper.draw_trackpoints(map_tile, surface, track)
-        target = config.get("Map", "target")
-        surface.write_to_png(target)
+    logging.getLogger(__name__).info("Trackmap with %d trackpoints written to %s", len(track), pic_target)
 
-        logging.getLogger(__name__).info("Trackmap with %d trackpoints written to %s", len(track), target)
+def feature_list(db, center):
+    try:
+        lon, lat = map(float, center.split(","))
+        logging.getLogger(__name__).info("Track_center in lon/lat format: %f,%f", lon, lat)
+        return [(lon, lat)]
+    except Exception as e:
+        logging.getLogger(__name__).info("Track_center as feature, trying to expand %s", center)
+        result = list()
+        for f in db.get_feature_position(center):
+            result.append((f.longitude, f.latitude))
+            logging.getLogger(__name__).info("Found feature %s", f)
+        return result
     
 if __name__ == "__main__":
 
     try:
-
         start_time = parse_ts(config.get("Track", "start"))
         end_time = parse_ts(config.get("Track", "end"))
+        track_radius = config.getfloat("Track", "radius")
         track_name = config.get("Track", "name")
 
-        make_trackmap(start_time, end_time, track_name)
+        with DB() as db:
+
+            track_center = feature_list(db, config.get("Track", "center"))
+
+            for i, center in enumerate(track_center):
+                
+                make_trackmap(db,
+                              i,
+                              start_time,
+                              end_time,
+                              center,
+                              track_radius,
+                              track_name)
         
     except Exception as e:
         logging.getLogger(__name__).error(e, exc_info=True)
